@@ -1,0 +1,1870 @@
+# Redis Deep Dive
+
+Comprehensive technical guide to Redis, an in-memory data structure store. This document provides detailed technical information, configuration examples, operational procedures, and troubleshooting guides for Redis administrators and engineers.
+
+> **For deployment strategies, decision frameworks, and high-level overviews, see the [Redis Mastery Series](https://thisiskushal31.github.io/blog/#/blog/redis-mastery-series) blog posts.**
+
+## Table of Contents
+
+### Getting Started
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Installation & Configuration](#installation--configuration)
+- [Basic Operations](#basic-operations)
+
+### Data Structures
+- [Strings](#strings)
+- [Hashes](#hashes)
+- [Lists](#lists)
+- [Sets](#sets)
+- [Sorted Sets](#sorted-sets)
+- [Bitmaps](#bitmaps)
+- [HyperLogLog](#hyperloglog)
+- [Streams](#streams)
+- [Geospatial](#geospatial)
+
+### Advanced Features
+- [Transactions](#transactions)
+- [Pub/Sub](#pubsub)
+- [Lua Scripting](#lua-scripting)
+- [Pipelining](#pipelining)
+- [Blocking Operations](#blocking-operations)
+
+### Persistence & Replication
+- [Persistence](#persistence)
+- [Replication](#replication)
+- [High Availability](#high-availability)
+- [Redis Cluster](#redis-cluster)
+
+### Modules
+- [RediSearch](#redisearch)
+- [RedisJSON](#redisjson)
+- [RedisTimeSeries](#redistimeseries)
+- [RedisAI](#redisai)
+- [RedisGraph](#redisgraph)
+
+### Operations & Management
+- [Monitoring](#monitoring)
+- [Performance Optimization](#performance-optimization)
+- [Security](#security)
+- [Backup & Recovery](#backup--recovery)
+- [Troubleshooting](#troubleshooting)
+
+### Use Cases & Patterns
+- [Caching Patterns](#caching-patterns)
+- [Session Management](#session-management)
+- [Rate Limiting](#rate-limiting)
+- [Leaderboards](#leaderboards)
+- [Real-time Analytics](#real-time-analytics)
+- [Message Queues](#message-queues)
+
+### Best Practices & Resources
+- [Best Practices](#best-practices)
+- [Resources](#resources)
+
+---
+
+## Overview
+
+Redis (Remote Dictionary Server) is an open-source, in-memory data structure store that can be used as a database, cache, message broker, and streaming engine. It supports various data structures including strings, hashes, lists, sets, sorted sets, bitmaps, hyperloglogs, geospatial indexes, and streams.
+
+According to the [Redis Documentation](https://redis.io/docs/latest/), "Redis is an open source (BSD licensed), in-memory data structure store, used as a database, cache and message broker." Redis is known for its exceptional performance, supporting sub-millisecond latency for most operations.
+
+### Key Features
+
+- **In-Memory Storage**: Extremely fast read/write operations with sub-millisecond latency
+- **Rich Data Structures**: Strings, hashes, lists, sets, sorted sets, bitmaps, hyperloglogs, geospatial indexes, and streams
+- **Persistence Options**: RDB snapshots and AOF (Append Only File) for data durability
+- **Replication**: Master-replica replication for high availability and read scalability
+- **Pub/Sub**: Publish-subscribe messaging pattern
+- **Lua Scripting**: Server-side scripting for complex atomic operations
+- **Transactions**: Atomic execution of command groups
+- **Modules**: Extensible architecture with modules like RediSearch, RedisJSON, RedisTimeSeries, RedisAI, and RedisGraph
+- **Clustering**: Automatic sharding and high availability with Redis Cluster
+
+### Use Cases
+
+- **Caching**: Web page caching, database query caching, session caching
+- **Session Storage**: User session management for web applications
+- **Real-time Analytics**: Real-time counters, leaderboards, rate limiting
+- **Message Queues**: Job queues, pub/sub messaging, event streaming
+- **Gaming**: Leaderboards, real-time scoring, matchmaking
+- **IoT**: Time-series data, sensor data aggregation
+- **Social Media**: Activity feeds, real-time chat, social graphs
+
+## Architecture
+
+### Core Components
+
+- **Server Process**: Single-threaded event loop handling all commands
+- **Memory**: Primary storage in RAM for fast access
+- **Persistence Layer**: Optional disk-based persistence (RDB/AOF)
+- **Network Layer**: TCP-based protocol with RESP (Redis Serialization Protocol)
+
+### Data Model
+
+Redis stores data as key-value pairs where:
+- **Keys**: Always strings, up to 512MB
+- **Values**: Can be various data structures (strings, hashes, lists, sets, sorted sets, etc.)
+- **Expiration**: Keys can have time-to-live (TTL) for automatic expiration
+
+### Threading Model
+
+Redis uses a single-threaded event loop for command processing, which:
+- Eliminates context switching overhead
+- Ensures atomic operations
+- Provides predictable performance
+- Requires careful consideration of blocking operations
+
+## Installation & Configuration
+
+### Installation
+
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install redis-server
+
+# CentOS/RHEL
+sudo yum install redis
+
+# macOS
+brew install redis
+
+# Docker
+docker run --name redis -d -p 6379:6379 redis:7-alpine
+
+# From Source
+wget https://download.redis.io/redis-stable.tar.gz
+tar xzf redis-stable.tar.gz
+cd redis-stable
+make
+sudo make install
+```
+
+### Configuration
+
+```conf
+# /etc/redis/redis.conf
+
+# Network
+bind 127.0.0.1
+port 6379
+protected-mode yes
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
+
+# General
+daemonize no
+pidfile /var/run/redis_6379.pid
+loglevel notice
+logfile /var/log/redis/redis-server.log
+databases 16
+
+# Memory
+maxmemory 2gb
+maxmemory-policy allkeys-lru
+maxmemory-samples 5
+
+# Persistence - RDB
+save 900 1      # Save after 900 sec if at least 1 key changed
+save 300 10     # Save after 300 sec if at least 10 keys changed
+save 60 10000   # Save after 60 sec if at least 10000 keys changed
+stop-writes-on-bgsave-error yes
+rdbcompression yes
+rdbchecksum yes
+dbfilename dump.rdb
+dir /var/lib/redis
+
+# Persistence - AOF
+appendonly yes
+appendfilename "appendonly.aof"
+appendfsync everysec
+no-appendfsync-on-rewrite no
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+aof-load-truncated yes
+
+# Logging
+loglevel notice
+logfile /var/log/redis/redis-server.log
+
+# Security
+requirepass yourpassword
+rename-command FLUSHDB ""
+rename-command FLUSHALL ""
+rename-command CONFIG "CONFIG_9a7b8c5d"
+
+# Client
+maxclients 10000
+
+# Slow Log
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# Latency Monitor
+latency-monitor-threshold 100
+```
+
+### Starting Redis
+
+```bash
+# Start server
+redis-server /etc/redis/redis.conf
+
+# Start with custom config
+redis-server --port 6380 --requirepass mypassword
+
+# Start in background
+redis-server --daemonize yes
+
+# Connect with CLI
+redis-cli
+redis-cli -h localhost -p 6379 -a password
+```
+
+## Basic Operations
+
+### Key Management
+
+```bash
+# Set and get
+SET key "value"
+GET key
+
+# Check existence
+EXISTS key
+EXISTS key1 key2 key3
+
+# Delete keys
+DEL key
+DEL key1 key2 key3
+
+# Get all keys (use with caution in production)
+KEYS pattern
+KEYS user:*
+
+# Scan keys (safer for production)
+SCAN 0 MATCH user:* COUNT 100
+
+# Get key type
+TYPE key
+
+# Rename key
+RENAME oldkey newkey
+RENAMENX oldkey newkey  # Only if newkey doesn't exist
+
+# Move key to different database
+MOVE key 1
+
+# Random key
+RANDOMKEY
+```
+
+### Expiration
+
+```bash
+# Set expiration
+EXPIRE key 3600        # Expire in 3600 seconds
+PEXPIRE key 3600000    # Expire in 3600000 milliseconds
+SET key "value" EX 3600
+SET key "value" PX 3600000
+
+# Get TTL
+TTL key     # Returns seconds, -1 if no expiry, -2 if key doesn't exist
+PTTL key    # Returns milliseconds
+
+# Remove expiration
+PERSIST key
+
+# Set key only if it doesn't exist
+SETNX key "value"
+
+# Set key and expiration atomically
+SETEX key 3600 "value"
+```
+
+## Strings
+
+Strings are the most basic Redis data type. They are binary-safe and can contain any data.
+
+### Basic Operations
+
+```bash
+# Set and get
+SET key "value"
+GET key
+
+# Set multiple keys
+MSET key1 "value1" key2 "value2"
+MGET key1 key2 key3
+
+# Set if not exists
+SETNX key "value"
+
+# Get and set atomically
+GETSET key "newvalue"
+
+# Append to string
+APPEND key "suffix"
+
+# Get substring
+GETRANGE key 0 4
+GETRANGE key 0 -1  # Get entire string
+
+# Set substring
+SETRANGE key 0 "new"
+
+# Get string length
+STRLEN key
+```
+
+### Numeric Operations
+
+```bash
+# Increment/decrement
+INCR key
+DECR key
+INCRBY key 5
+DECRBY key 3
+INCRBYFLOAT key 2.5
+
+# Bit operations
+SETBIT key offset value
+GETBIT key offset
+BITCOUNT key [start] [end]
+BITOP AND destkey key1 key2
+BITOP OR destkey key1 key2
+BITOP XOR destkey key1 key2
+BITOP NOT destkey key
+BITPOS key bit [start] [end]
+```
+
+### String Patterns
+
+```bash
+# Pattern matching
+SET user:1000:name "John"
+SET user:1000:email "john@example.com"
+MGET user:1000:name user:1000:email
+
+# Counter pattern
+INCR page:views
+INCRBY page:views 10
+GET page:views
+```
+
+## Hashes
+
+Hashes are maps between string fields and string values. They are perfect for representing objects.
+
+### Hash Operations
+
+```bash
+# Set hash fields
+HSET user:1000 name "John" email "john@example.com" age 30
+HMSET user:1000 name "John" email "john@example.com" age 30
+
+# Get hash field
+HGET user:1000 name
+
+# Get multiple fields
+HMGET user:1000 name email age
+
+# Get all fields and values
+HGETALL user:1000
+
+# Get all fields
+HKEYS user:1000
+
+# Get all values
+HVALS user:1000
+
+# Check if field exists
+HEXISTS user:1000 name
+
+# Delete field
+HDEL user:1000 email
+
+# Get number of fields
+HLEN user:1000
+
+# Increment numeric field
+HINCRBY user:1000 score 10
+HINCRBYFLOAT user:1000 balance 5.5
+
+# Set field only if it doesn't exist
+HSETNX user:1000 phone "123-456-7890"
+```
+
+### Hash Use Cases
+
+```bash
+# User profile
+HSET user:1000 name "John" email "john@example.com" age 30
+
+# Shopping cart
+HSET cart:session123 item1 2 item2 1 item3 5
+HINCRBY cart:session123 item1 1
+
+# Object storage
+HSET product:1001 name "Laptop" price 999.99 stock 50
+```
+
+## Lists
+
+Lists are ordered collections of strings. They are implemented as linked lists, making insertion and deletion fast.
+
+### List Operations
+
+```bash
+# Push to left (head)
+LPUSH mylist "item1" "item2"
+
+# Push to right (tail)
+RPUSH mylist "item3" "item4"
+
+# Pop from left
+LPOP mylist
+
+# Pop from right
+RPOP mylist
+
+# Get range
+LRANGE mylist 0 -1  # Get all items
+LRANGE mylist 0 9  # Get first 10 items
+
+# Get by index
+LINDEX mylist 0
+
+# Get length
+LLEN mylist
+
+# Set by index
+LSET mylist 0 "newitem"
+
+# Insert before/after
+LINSERT mylist BEFORE "item2" "newitem"
+LINSERT mylist AFTER "item2" "newitem"
+
+# Remove elements
+LREM mylist 2 "item"  # Remove 2 occurrences of "item"
+LREM mylist -2 "item" # Remove last 2 occurrences
+LREM mylist 0 "item"  # Remove all occurrences
+
+# Trim list
+LTRIM mylist 0 9  # Keep only first 10 items
+
+# Blocking operations
+BLPOP mylist 10  # Block for up to 10 seconds
+BRPOP mylist 10
+BRPOPLPUSH source dest 10
+```
+
+### List Use Cases
+
+```bash
+# Queue (FIFO)
+LPUSH tasks "task1"
+RPOP tasks
+
+# Stack (LIFO)
+LPUSH stack "item1"
+LPOP stack
+
+# Timeline/Activity feed
+LPUSH user:1000:feed "post1" "post2" "post3"
+LRANGE user:1000:feed 0 9
+```
+
+## Sets
+
+Sets are unordered collections of unique strings. They are useful for tracking unique items and set operations.
+
+### Set Operations
+
+```bash
+# Add members
+SADD myset "member1" "member2" "member3"
+
+# Get all members
+SMEMBERS myset
+
+# Check membership
+SISMEMBER myset "member1"
+
+# Get count
+SCARD myset
+
+# Remove member
+SREM myset "member1"
+
+# Random member
+SRANDMEMBER myset
+SRANDMEMBER myset 3  # Get 3 random members
+SPOP myset  # Remove and return random member
+SPOP myset 2  # Remove and return 2 random members
+
+# Move member
+SMOVE source dest "member1"
+```
+
+### Set Operations (Multiple Sets)
+
+```bash
+# Union
+SUNION set1 set2 set3
+SUNIONSTORE dest set1 set2
+
+# Intersection
+SINTER set1 set2
+SINTERSTORE dest set1 set2
+
+# Difference
+SDIFF set1 set2
+SDIFFSTORE dest set1 set2
+```
+
+### Set Use Cases
+
+```bash
+# Tags
+SADD article:1000:tags "redis" "database" "nosql"
+SMEMBERS article:1000:tags
+
+# Unique visitors
+SADD visitors:2024-01-01 "user1" "user2" "user3"
+SCARD visitors:2024-01-01
+
+# Friends/Followers
+SADD user:1000:friends "user1" "user2"
+SINTER user:1000:friends user:2000:friends  # Mutual friends
+```
+
+## Sorted Sets
+
+Sorted sets are sets with an associated score. They are ordered by score, making them perfect for leaderboards and rankings.
+
+### Sorted Set Operations
+
+```bash
+# Add members with scores
+ZADD leaderboard 100 "player1" 200 "player2" 150 "player3"
+
+# Get range (ascending)
+ZRANGE leaderboard 0 -1 WITHSCORES
+ZRANGE leaderboard 0 9  # Top 10
+
+# Get range (descending)
+ZREVRANGE leaderboard 0 -1 WITHSCORES
+ZREVRANGE leaderboard 0 9  # Top 10
+
+# Get score
+ZSCORE leaderboard "player1"
+
+# Get rank (0-based, ascending)
+ZRANK leaderboard "player1"
+
+# Get rank (0-based, descending)
+ZREVRANK leaderboard "player1"
+
+# Count by score range
+ZCOUNT leaderboard 100 200
+
+# Count by rank range
+ZLEXCOUNT leaderboard [a [z
+
+# Increment score
+ZINCRBY leaderboard 50 "player1"
+
+# Remove member
+ZREM leaderboard "player1"
+
+# Remove by rank range
+ZREMRANGEBYRANK leaderboard 0 9  # Remove bottom 10
+
+# Remove by score range
+ZREMRANGEBYSCORE leaderboard 0 100
+
+# Remove by lexicographic range
+ZREMRANGEBYLEX leaderboard [a [z
+```
+
+### Sorted Set Operations (Multiple Sets)
+
+```bash
+# Union
+ZUNIONSTORE dest 2 set1 set2 WEIGHTS 1 2 AGGREGATE SUM
+
+# Intersection
+ZINTERSTORE dest 2 set1 set2 WEIGHTS 1 2 AGGREGATE MAX
+```
+
+### Sorted Set Use Cases
+
+```bash
+# Leaderboard
+ZADD leaderboard 1000 "player1" 950 "player2" 1100 "player3"
+ZREVRANGE leaderboard 0 9 WITHSCORES  # Top 10
+
+# Time-based ranking
+ZADD posts:hot 1609459200 "post1" 1609459300 "post2"
+
+# Priority queue
+ZADD tasks 1 "low" 5 "medium" 10 "high"
+ZRANGE tasks 0 0  # Get highest priority
+```
+
+## Bitmaps
+
+Bitmaps are strings that can be treated as arrays of bits. They are extremely memory-efficient for boolean operations.
+
+### Bitmap Operations
+
+```bash
+# Set bit
+SETBIT mybitmap 0 1
+SETBIT mybitmap 7 1
+
+# Get bit
+GETBIT mybitmap 0
+
+# Count set bits
+BITCOUNT mybitmap
+BITCOUNT mybitmap 0 7  # Count in byte range
+
+# Bitwise operations
+BITOP AND result bitmap1 bitmap2
+BITOP OR result bitmap1 bitmap2
+BITOP XOR result bitmap1 bitmap2
+BITOP NOT result bitmap1
+
+# Find first set bit
+BITPOS mybitmap 1  # Find first bit set to 1
+BITPOS mybitmap 0  # Find first bit set to 0
+```
+
+### Bitmap Use Cases
+
+```bash
+# User activity tracking
+SETBIT user:1000:activity:2024-01-01 10 1  # Active at hour 10
+GETBIT user:1000:activity:2024-01-01 10
+
+# Unique daily active users
+SETBIT dau:2024-01-01 1000 1
+BITCOUNT dau:2024-01-01
+
+# Feature flags
+SETBIT features:user:1000 0 1  # Enable feature 0
+GETBIT features:user:1000 0
+```
+
+## HyperLogLog
+
+HyperLogLog is a probabilistic data structure for estimating the cardinality of a set. It uses very little memory (12KB per key) and provides approximate counts.
+
+### HyperLogLog Operations
+
+```bash
+# Add elements
+PFADD hll "element1" "element2" "element3"
+
+# Get approximate count
+PFCOUNT hll
+
+# Merge multiple HyperLogLogs
+PFMERGE result hll1 hll2 hll3
+```
+
+### HyperLogLog Use Cases
+
+```bash
+# Unique visitors (approximate)
+PFADD visitors:2024-01-01 "user1" "user2" "user3"
+PFCOUNT visitors:2024-01-01
+
+# Daily unique users across multiple events
+PFADD daily:users "user1" "user2"
+PFADD daily:users "user2" "user3"
+PFCOUNT daily:users  # Approximately 3 unique users
+```
+
+## Streams
+
+Streams are log-like data structures for streaming data. They are ideal for messaging, event sourcing, and time-series data.
+
+### Stream Operations
+
+```bash
+# Add entry
+XADD mystream * field1 value1 field2 value2
+XADD mystream * name "John" age 30
+
+# Read entries
+XREAD COUNT 10 STREAMS mystream 0
+XREAD BLOCK 1000 STREAMS mystream $
+
+# Range operations
+XRANGE mystream - +  # All entries
+XRANGE mystream 0 1000-0  # Specific range
+XREVRANGE mystream + -  # Reverse order
+
+# Consumer groups
+XGROUP CREATE mystream mygroup 0
+XREADGROUP GROUP mygroup consumer1 COUNT 1 STREAMS mystream >
+XACK mystream mygroup 1609459200000-0
+XPENDING mystream mygroup
+XCLAIM mystream mygroup consumer2 3600000 1609459200000-0
+
+# Stream management
+XDEL mystream 1609459200000-0
+XLEN mystream
+XTRIM mystream MAXLEN 1000
+```
+
+### Stream Use Cases
+
+```bash
+# Event streaming
+XADD events * type "user_login" user_id 1000 timestamp 1609459200
+
+# Message queue with consumer groups
+XGROUP CREATE orders order_processors 0
+XADD orders * order_id 1000 status "pending"
+XREADGROUP GROUP order_processors worker1 COUNT 1 STREAMS orders >
+```
+
+## Geospatial
+
+Redis provides geospatial indexing capabilities for storing and querying location data.
+
+### Geospatial Operations
+
+```bash
+# Add location
+GEOADD cities 13.361389 38.115556 "Palermo" 15.087269 37.502669 "Catania"
+
+# Get distance
+GEODIST cities "Palermo" "Catania" km
+
+# Get position
+GEOPOS cities "Palermo"
+
+# Find nearby locations
+GEORADIUS cities 15 37 100 km WITHCOORD WITHDIST
+GEORADIUS cities 15 37 100 km WITHCOORD WITHDIST COUNT 10
+
+# Find by member
+GEORADIUSBYMEMBER cities "Palermo" 200 km
+
+# Get hash
+GEOHASH cities "Palermo" "Catania"
+```
+
+### Geospatial Use Cases
+
+```bash
+# Store restaurant locations
+GEOADD restaurants -122.4194 37.7749 "restaurant1" -122.4094 37.7849 "restaurant2"
+
+# Find nearby restaurants
+GEORADIUS restaurants -122.4194 37.7749 5 km WITHCOORD WITHDIST
+
+# Delivery radius
+GEORADIUSBYMEMBER restaurants "restaurant1" 10 km
+```
+
+## Transactions
+
+Redis transactions allow you to execute a group of commands atomically. All commands in a transaction are serialized and executed sequentially.
+
+### Transaction Commands
+
+```bash
+# Start transaction
+MULTI
+
+# Queue commands
+SET key1 "value1"
+SET key2 "value2"
+INCR counter
+
+# Execute transaction
+EXEC
+
+# Discard transaction
+DISCARD
+
+# Watch keys for changes
+WATCH key1 key2
+MULTI
+SET key1 "newvalue"
+EXEC  # Will fail if key1 or key2 changed
+UNWATCH
+```
+
+### Transaction Example
+
+```bash
+# Atomic transfer
+WATCH account:1000 account:2000
+MULTI
+DECRBY account:1000 100
+INCRBY account:2000 100
+EXEC
+```
+
+### Transaction Limitations
+
+- Redis transactions are not fully ACID
+- Commands are queued, not executed immediately
+- Errors don't rollback (Redis continues executing)
+- No rollback mechanism
+- Use Lua scripts for complex atomic operations
+
+## Pub/Sub
+
+Redis Pub/Sub implements the publish-subscribe messaging pattern for real-time communication.
+
+### Pub/Sub Commands
+
+```bash
+# Subscribe to channels
+SUBSCRIBE channel1 channel2
+PSUBSCRIBE pattern:*  # Pattern subscription
+
+# Publish message
+PUBLISH channel1 "message"
+
+# Unsubscribe
+UNSUBSCRIBE channel1
+PUNSUBSCRIBE pattern:*
+
+# Get active channels
+PUBSUB CHANNELS
+PUBSUB CHANNELS pattern:*
+PUBSUB NUMSUB channel1
+PUBSUB NUMPAT
+```
+
+### Pub/Sub Example
+
+```bash
+# Publisher
+PUBLISH news:sports "Game started"
+PUBLISH news:tech "New product launched"
+
+# Subscriber
+SUBSCRIBE news:sports
+# Receives: 1) "subscribe" 2) "news:sports" 3) 1
+# Then receives: 1) "message" 2) "news:sports" 3) "Game started"
+```
+
+### Pub/Sub Use Cases
+
+- Real-time notifications
+- Chat applications
+- Event broadcasting
+- System coordination
+
+## Lua Scripting
+
+Lua scripting allows you to execute complex operations atomically on the server side.
+
+### Basic Lua Scripting
+
+```bash
+# Execute script
+EVAL "return redis.call('GET', KEYS[1])" 1 mykey
+
+# Execute script with arguments
+EVAL "return redis.call('SET', KEYS[1], ARGV[1])" 1 mykey "myvalue"
+
+# Load and execute script
+SCRIPT LOAD "return redis.call('GET', KEYS[1])"
+EVALSHA <sha1> 1 mykey
+```
+
+### Lua Script Examples
+
+```lua
+-- Atomic increment with limit
+local current = redis.call('GET', KEYS[1])
+if current == false then
+    current = 0
+end
+if tonumber(current) < tonumber(ARGV[1]) then
+    return redis.call('INCR', KEYS[1])
+else
+    return nil
+end
+```
+
+```lua
+-- Atomic list pop and set
+local item = redis.call('LPOP', KEYS[1])
+if item then
+    redis.call('SET', KEYS[2], item)
+end
+return item
+```
+
+```lua
+-- Rate limiting
+local key = KEYS[1]
+local limit = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local current = redis.call('INCR', key)
+if current == 1 then
+    redis.call('EXPIRE', key, window)
+end
+if current > limit then
+    return 0
+end
+return 1
+```
+
+### Script Management
+
+```bash
+# Load script
+SCRIPT LOAD "return redis.call('GET', KEYS[1])"
+
+# Check if script exists
+SCRIPT EXISTS <sha1>
+
+# Flush scripts
+SCRIPT FLUSH
+
+# Kill running script
+SCRIPT KILL
+```
+
+## Pipelining
+
+Pipelining allows you to send multiple commands without waiting for each response, significantly improving performance.
+
+### Pipelining Example (Python)
+
+```python
+import redis
+
+r = redis.Redis(host='localhost', port=6379)
+
+# Pipeline multiple commands
+pipe = r.pipeline()
+pipe.set('key1', 'value1')
+pipe.set('key2', 'value2')
+pipe.get('key1')
+pipe.get('key2')
+results = pipe.execute()
+# Results: [True, True, 'value1', 'value2']
+```
+
+### Pipelining Benefits
+
+- Reduces round-trip time
+- Increases throughput
+- Maintains atomicity per command (not across pipeline)
+- Use for batch operations
+
+## Blocking Operations
+
+Redis provides blocking operations for implementing queues and coordination.
+
+### Blocking List Operations
+
+```bash
+# Block until element available
+BLPOP mylist 10  # Block for up to 10 seconds
+BRPOP mylist 10
+
+# Blocking pop and push
+BRPOPLPUSH source dest 10
+```
+
+### Blocking Stream Operations
+
+```bash
+# Block until new entries
+XREAD BLOCK 1000 STREAMS mystream $
+XREADGROUP GROUP mygroup consumer1 BLOCK 1000 STREAMS mystream >
+```
+
+## Persistence
+
+Redis provides two persistence mechanisms: RDB (snapshots) and AOF (append-only file).
+
+### RDB (Redis Database Backup)
+
+RDB creates point-in-time snapshots of the dataset.
+
+**Configuration:**
+```conf
+save 900 1      # Save after 900 sec if at least 1 key changed
+save 300 10     # Save after 300 sec if at least 10 keys changed
+save 60 10000   # Save after 60 sec if at least 10000 keys changed
+
+stop-writes-on-bgsave-error yes
+rdbcompression yes
+rdbchecksum yes
+dbfilename dump.rdb
+dir /var/lib/redis
+```
+
+**Manual Snapshots:**
+```bash
+SAVE          # Synchronous save (blocks)
+BGSAVE        # Asynchronous save (background)
+```
+
+**Pros:**
+- Fast, compact file format
+- Good for backups
+- Minimal performance impact
+- Easy to restore
+
+**Cons:**
+- May lose data between snapshots
+- Not suitable for high durability requirements
+
+### AOF (Append Only File)
+
+AOF logs every write operation received by the server.
+
+**Configuration:**
+```conf
+appendonly yes
+appendfilename "appendonly.aof"
+appendfsync everysec  # always, everysec, no
+no-appendfsync-on-rewrite no
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+aof-load-truncated yes
+```
+
+**Sync Options:**
+- `always`: Sync every write (safest, slowest)
+- `everysec`: Sync every second (balanced, default)
+- `no`: Let OS decide (fastest, less safe)
+
+**AOF Rewrite:**
+```bash
+BGREWRITEAOF  # Manually trigger AOF rewrite
+```
+
+**Pros:**
+- Better durability
+- Can recover more data
+- Human-readable format
+- Automatic background rewriting
+
+**Cons:**
+- Larger file size
+- Slower than RDB
+- May need rewriting
+
+### Hybrid Approach
+
+Use both RDB and AOF:
+- RDB for periodic backups
+- AOF for durability
+- Best of both worlds
+
+## Replication
+
+Redis replication allows you to create copies of your Redis server for redundancy and read scalability.
+
+### Master-Replica Setup
+
+**Master Configuration:**
+```conf
+# No special configuration needed
+# Master is the default
+```
+
+**Replica Configuration:**
+```conf
+# In redis.conf
+replicaof master_host 6379
+masterauth masterpassword  # If master has password
+replica-read-only yes
+```
+
+**Or via Command:**
+```bash
+REPLICAOF master_host 6379
+CONFIG SET replica-read-only yes
+```
+
+### Replication Process
+
+1. Replica connects to master
+2. Master sends RDB file to replica (full sync)
+3. Master streams commands to replica (partial sync)
+4. Replica applies commands to stay in sync
+
+### Replication Commands
+
+```bash
+# Check replication status
+INFO replication
+
+# Make server a replica
+REPLICAOF host port
+REPLICAOF NO ONE  # Stop being a replica
+
+# Sync manually
+SYNC  # Old command, use REPLICAOF instead
+```
+
+### Replication Features
+
+- **Asynchronous**: Replica acknowledges after receiving data
+- **Non-blocking**: Master continues serving requests during sync
+- **Automatic Reconnection**: Replica reconnects if connection lost
+- **Partial Resynchronization**: Resyncs only missing data if possible
+
+## High Availability
+
+### Redis Sentinel
+
+Redis Sentinel provides automatic failover and monitoring for Redis.
+
+**Sentinel Configuration:**
+```conf
+# sentinel.conf
+sentinel monitor mymaster 127.0.0.1 6379 2
+sentinel down-after-milliseconds mymaster 5000
+sentinel failover-timeout mymaster 10000
+sentinel parallel-syncs mymaster 1
+sentinel auth-pass mymaster mypassword
+```
+
+**Starting Sentinel:**
+```bash
+redis-sentinel /path/to/sentinel.conf
+# or
+redis-server /path/to/sentinel.conf --sentinel
+```
+
+**Sentinel Commands:**
+```bash
+# Get master info
+SENTINEL masters
+SENTINEL master mymaster
+
+# Get replicas
+SENTINEL replicas mymaster
+
+# Get sentinels
+SENTINEL sentinels mymaster
+
+# Manual failover
+SENTINEL failover mymaster
+```
+
+### Sentinel Features
+
+- Automatic failover
+- Configuration provider
+- Notification system
+- Monitoring
+
+## Redis Cluster
+
+Redis Cluster provides automatic sharding and high availability.
+
+### Cluster Setup
+
+```bash
+# Create cluster (6 nodes: 3 masters, 3 replicas)
+redis-cli --cluster create \
+  127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 \
+  127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005 \
+  --cluster-replicas 1
+
+# Check cluster status
+redis-cli --cluster check 127.0.0.1:7000
+
+# Get cluster info
+redis-cli -c -p 7000 CLUSTER INFO
+redis-cli -c -p 7000 CLUSTER NODES
+```
+
+### Cluster Configuration
+
+```conf
+# redis.conf for cluster node
+port 7000
+cluster-enabled yes
+cluster-config-file nodes-7000.conf
+cluster-node-timeout 15000
+appendonly yes
+```
+
+### Cluster Commands
+
+```bash
+# Cluster info
+CLUSTER INFO
+CLUSTER NODES
+CLUSTER SLOTS
+
+# Add node
+CLUSTER MEET ip port
+
+# Reshard
+redis-cli --cluster reshard 127.0.0.1:7000
+
+# Rebalance
+redis-cli --cluster rebalance 127.0.0.1:7000
+```
+
+### Cluster Features
+
+- Automatic sharding (16384 hash slots)
+- High availability (replicas per master)
+- Linear scalability
+- No proxy needed
+- Client-side routing
+
+## RediSearch
+
+RediSearch is a full-text search and secondary index module for Redis.
+
+### Installation
+
+```bash
+# Load module
+MODULE LOAD /path/to/redisearch.so
+
+# Or in redis.conf
+loadmodule /path/to/redisearch.so
+```
+
+### Basic Usage
+
+```bash
+# Create index
+FT.CREATE idx:users ON HASH PREFIX 1 user: SCHEMA name TEXT SORTABLE age NUMERIC SORTABLE
+
+# Add documents
+HSET user:1 name "John Doe" age 30
+HSET user:2 name "Jane Smith" age 25
+
+# Search
+FT.SEARCH idx:users "John"
+FT.SEARCH idx:users "@age:[25 35]"
+
+# Aggregation
+FT.AGGREGATE idx:users "*" GROUPBY 1 @age REDUCE COUNT 0 AS count
+```
+
+## RedisJSON
+
+RedisJSON provides JSON data type support for Redis.
+
+### Installation
+
+```bash
+MODULE LOAD /path/to/rejson.so
+```
+
+### Basic Usage
+
+```bash
+# Set JSON
+JSON.SET user:1 $ '{"name":"John","age":30,"city":"NYC"}'
+
+# Get JSON
+JSON.GET user:1
+JSON.GET user:1 $.name
+
+# Update JSON
+JSON.SET user:1 $.age 31
+
+# Array operations
+JSON.ARRAPPEND user:1 $.tags "redis" "database"
+JSON.ARRINDEX user:1 $.tags "redis"
+```
+
+## RedisTimeSeries
+
+RedisTimeSeries is optimized for time-series data.
+
+### Installation
+
+```bash
+MODULE LOAD /path/to/redistimeseries.so
+```
+
+### Basic Usage
+
+```bash
+# Create time series
+TS.CREATE temperature:room1 RETENTION 3600000
+
+# Add sample
+TS.ADD temperature:room1 1609459200000 22.5
+
+# Query
+TS.RANGE temperature:room1 1609459200000 1609545600000
+TS.MGET WITHLABELS FILTER location=room1
+```
+
+## RedisAI
+
+RedisAI enables running AI/ML models within Redis.
+
+### Installation
+
+```bash
+MODULE LOAD /path/to/redisai.so
+```
+
+### Basic Usage
+
+```bash
+# Set model
+AI.MODELSET mymodel ONNX CPU BLOB <model_blob>
+
+# Run inference
+AI.MODELRUN mymodel INPUTS input1 input2 OUTPUTS output
+
+# Get tensor
+AI.TENSORGET output VALUES
+```
+
+## RedisGraph
+
+RedisGraph provides graph database functionality.
+
+### Installation
+
+```bash
+MODULE LOAD /path/to/redisgraph.so
+```
+
+### Basic Usage
+
+```bash
+# Create graph
+GRAPH.QUERY social "CREATE (:person {name:'John', age:30})-[:knows]->(:person {name:'Jane', age:25})"
+
+# Query graph
+GRAPH.QUERY social "MATCH (a:person)-[:knows]->(b:person) RETURN a.name, b.name"
+```
+
+## Monitoring
+
+### INFO Command
+
+```bash
+# Server information
+INFO server
+
+# Memory information
+INFO memory
+
+# Replication information
+INFO replication
+
+# Statistics
+INFO stats
+
+# Clients
+INFO clients
+
+# Persistence
+INFO persistence
+
+# All information
+INFO all
+```
+
+### Monitoring Tools
+
+```bash
+# Real-time statistics
+redis-cli --stat
+
+# Find large keys
+redis-cli --bigkeys
+
+# Scan keys
+redis-cli --scan --pattern "user:*"
+
+# Monitor all commands
+redis-cli MONITOR
+
+# Latency monitoring
+redis-cli --latency
+redis-cli --latency-history
+redis-cli --latency-dist
+
+# Slow log
+SLOWLOG GET 10
+SLOWLOG LEN
+SLOWLOG RESET
+```
+
+### Key Metrics
+
+- **Memory Usage**: `INFO memory`
+- **Connected Clients**: `INFO clients`
+- **Commands Processed**: `INFO stats`
+- **Replication Lag**: `INFO replication`
+- **Hit Rate**: Calculate from `keyspace_hits` and `keyspace_misses`
+
+## Performance Optimization
+
+### Memory Optimization
+
+```conf
+# Set max memory
+maxmemory 2gb
+
+# Eviction policies
+maxmemory-policy allkeys-lru    # Evict least recently used
+maxmemory-policy allkeys-lfu    # Evict least frequently used
+maxmemory-policy volatile-lru   # Evict LRU from keys with expiration
+maxmemory-policy volatile-lfu   # Evict LFU from keys with expiration
+maxmemory-policy volatile-ttl   # Evict shortest TTL
+maxmemory-policy noeviction     # Return errors on write
+```
+
+### Optimization Tips
+
+1. **Use appropriate data structures**: Hashes for objects, sets for unique items
+2. **Use smaller keys**: Shorter key names save memory
+3. **Use integers**: Store numbers as integers, not strings
+4. **Set expiration**: Use TTL for temporary data
+5. **Use pipelining**: Batch operations to reduce round trips
+6. **Connection pooling**: Reuse connections
+7. **Avoid blocking operations**: Use async patterns
+8. **Monitor memory**: Track memory usage and optimize
+
+### Connection Pooling
+
+```python
+import redis
+from redis.connection import ConnectionPool
+
+pool = ConnectionPool(host='localhost', port=6379, max_connections=50)
+r = redis.Redis(connection_pool=pool)
+```
+
+## Security
+
+### Authentication
+
+```conf
+# Require password
+requirepass yourpassword
+```
+
+```bash
+# Authenticate
+AUTH yourpassword
+
+# Or in connection
+redis-cli -a yourpassword
+```
+
+### Network Security
+
+```conf
+# Bind to specific interface
+bind 127.0.0.1
+
+# Protected mode
+protected-mode yes
+
+# Firewall rules
+# Allow only specific IPs
+```
+
+### Command Renaming
+
+```conf
+# Disable dangerous commands
+rename-command FLUSHDB ""
+rename-command FLUSHALL ""
+rename-command CONFIG "CONFIG_9a7b8c5d"
+rename-command SHUTDOWN "SHUTDOWN_9a7b8c5d"
+```
+
+### TLS/SSL
+
+```conf
+# Enable TLS
+tls-port 6380
+tls-cert-file /path/to/cert.pem
+tls-key-file /path/to/key.pem
+tls-ca-cert-file /path/to/ca.pem
+```
+
+## Backup & Recovery
+
+### RDB Backup
+
+```bash
+# Manual backup
+BGSAVE
+
+# Copy RDB file
+cp /var/lib/redis/dump.rdb /backup/dump-$(date +%Y%m%d).rdb
+
+# Restore
+cp /backup/dump.rdb /var/lib/redis/dump.rdb
+redis-server /etc/redis/redis.conf
+```
+
+### AOF Backup
+
+```bash
+# Copy AOF file
+cp /var/lib/redis/appendonly.aof /backup/appendonly-$(date +%Y%m%d).aof
+
+# Restore
+cp /backup/appendonly.aof /var/lib/redis/appendonly.aof
+redis-server /etc/redis/redis.conf
+```
+
+### Backup Best Practices
+
+- Regular automated backups
+- Test restore procedures
+- Store backups off-site
+- Use both RDB and AOF
+- Monitor backup completion
+
+## Troubleshooting
+
+### Common Issues
+
+**Memory Issues:**
+```bash
+# Check memory usage
+INFO memory
+
+# Find large keys
+redis-cli --bigkeys
+
+# Check eviction policy
+CONFIG GET maxmemory-policy
+```
+
+**Performance Issues:**
+```bash
+# Check slow log
+SLOWLOG GET 10
+
+# Monitor latency
+redis-cli --latency
+
+# Check connection count
+INFO clients
+```
+
+**Replication Issues:**
+```bash
+# Check replication status
+INFO replication
+
+# Check replication lag
+redis-cli -h replica_host INFO replication | grep master_repl_offset
+```
+
+**Connection Issues:**
+```bash
+# Check max clients
+CONFIG GET maxclients
+
+# Check current connections
+INFO clients
+
+# Check network
+redis-cli --latency
+```
+
+### Debugging Commands
+
+```bash
+# Get configuration
+CONFIG GET *
+
+# Set configuration
+CONFIG SET maxmemory 2gb
+
+# Reset statistics
+CONFIG RESETSTAT
+
+# Debug object
+DEBUG OBJECT key
+
+# Memory usage
+MEMORY USAGE key
+```
+
+## Caching Patterns
+
+### Cache-Aside Pattern
+
+```python
+def get_user(user_id):
+    # Try cache first
+    cached = r.get(f"user:{user_id}")
+    if cached:
+        return json.loads(cached)
+    
+    # Fetch from database
+    user = db.get_user(user_id)
+    
+    # Cache for 1 hour
+    r.setex(f"user:{user_id}", 3600, json.dumps(user))
+    return user
+```
+
+### Write-Through Pattern
+
+```python
+def update_user(user_id, data):
+    # Update database
+    db.update_user(user_id, data)
+    
+    # Update cache
+    r.setex(f"user:{user_id}", 3600, json.dumps(data))
+```
+
+### Write-Behind Pattern
+
+```python
+def update_user(user_id, data):
+    # Update cache immediately
+    r.setex(f"user:{user_id}", 3600, json.dumps(data))
+    
+    # Queue for database update
+    r.lpush("db:updates", json.dumps({"user_id": user_id, "data": data}))
+```
+
+## Session Management
+
+```python
+import redis
+import json
+import uuid
+
+r = redis.Redis(host='localhost', port=6379)
+
+def create_session(user_id):
+    session_id = str(uuid.uuid4())
+    session_data = {
+        "user_id": user_id,
+        "created_at": time.time(),
+        "last_activity": time.time()
+    }
+    r.setex(f"session:{session_id}", 3600, json.dumps(session_data))
+    return session_id
+
+def get_session(session_id):
+    data = r.get(f"session:{session_id}")
+    if data:
+        return json.loads(data)
+    return None
+
+def update_session(session_id, data):
+    session = get_session(session_id)
+    if session:
+        session.update(data)
+        r.setex(f"session:{session_id}", 3600, json.dumps(session))
+```
+
+## Rate Limiting
+
+### Simple Rate Limiting
+
+```python
+def rate_limit(user_id, limit=100, window=3600):
+    key = f"rate_limit:{user_id}"
+    current = r.incr(key)
+    
+    if current == 1:
+        r.expire(key, window)
+    
+    return current <= limit
+```
+
+### Sliding Window Rate Limiting
+
+```python
+def sliding_window_rate_limit(user_id, limit=100, window=3600):
+    key = f"rate_limit:{user_id}"
+    now = time.time()
+    
+    pipe = r.pipeline()
+    pipe.zremrangebyscore(key, 0, now - window)
+    pipe.zcard(key)
+    pipe.zadd(key, {str(now): now})
+    pipe.expire(key, window)
+    results = pipe.execute()
+    
+    return results[1] < limit
+```
+
+## Leaderboards
+
+```python
+def update_score(player_id, score):
+    r.zadd("leaderboard", {player_id: score})
+
+def get_top_players(n=10):
+    return r.zrevrange("leaderboard", 0, n-1, withscores=True)
+
+def get_player_rank(player_id):
+    rank = r.zrevrank("leaderboard", player_id)
+    return rank + 1 if rank is not None else None
+
+def get_players_around(player_id, range_size=5):
+    rank = r.zrevrank("leaderboard", player_id)
+    if rank is None:
+        return []
+    start = max(0, rank - range_size)
+    end = rank + range_size
+    return r.zrevrange("leaderboard", start, end, withscores=True)
+```
+
+## Real-time Analytics
+
+```python
+# Page views counter
+r.incr(f"page:views:{page_id}:{date}")
+
+# Unique visitors
+r.pfadd(f"visitors:{date}", user_id)
+
+# Real-time metrics
+r.hincrby("metrics:realtime", "requests", 1)
+r.hincrby("metrics:realtime", "errors", 1)
+```
+
+## Message Queues
+
+### Simple Queue
+
+```python
+# Producer
+r.lpush("tasks", json.dumps({"task_id": 1, "data": "..."}))
+
+# Consumer
+while True:
+    task = r.brpop("tasks", timeout=10)
+    if task:
+        process_task(json.loads(task[1]))
+```
+
+### Priority Queue
+
+```python
+# Producer
+r.zadd("tasks", {json.dumps(task): priority})
+
+# Consumer
+while True:
+    tasks = r.zrange("tasks", 0, 0)
+    if tasks:
+        task = json.loads(tasks[0])
+        r.zrem("tasks", tasks[0])
+        process_task(task)
+    else:
+        time.sleep(0.1)
+```
+
+## Best Practices
+
+1. **Memory Management**
+   - Set `maxmemory` and appropriate eviction policy
+   - Monitor memory usage regularly
+   - Use appropriate data structures
+   - Set TTL on temporary data
+
+2. **Persistence**
+   - Choose RDB, AOF, or both based on requirements
+   - Test backup and restore procedures
+   - Monitor persistence performance
+
+3. **Connection Management**
+   - Use connection pooling
+   - Limit connection count
+   - Monitor connection usage
+
+4. **Performance**
+   - Use pipelining for batch operations
+   - Avoid blocking operations in production
+   - Monitor slow queries
+   - Optimize data structures
+
+5. **Security**
+   - Enable authentication
+   - Use network security (firewall, bind)
+   - Rename dangerous commands
+   - Use TLS for sensitive data
+
+6. **High Availability**
+   - Use replication for redundancy
+   - Use Sentinel or Cluster for automatic failover
+   - Monitor replication lag
+   - Test failover procedures
+
+7. **Monitoring**
+   - Monitor key metrics (memory, connections, latency)
+   - Set up alerts
+   - Use monitoring tools
+   - Review slow logs regularly
+
+8. **Key Naming**
+   - Use consistent naming conventions
+   - Use descriptive names
+   - Include namespace/prefix
+   - Example: `user:1000:profile`, `session:abc123`
+
+9. **Data Modeling**
+   - Choose appropriate data structures
+   - Denormalize when beneficial
+   - Use hashes for objects
+   - Use sets for unique items
+
+10. **Error Handling**
+    - Handle connection errors
+    - Implement retry logic
+    - Log errors appropriately
+    - Monitor error rates
+
+## Resources
+
+### Official Documentation
+- [Redis Documentation](https://redis.io/docs/latest/)
+- [Redis Commands Reference](https://redis.io/commands/)
+- [Redis Configuration](https://redis.io/docs/latest/operate/oss_and_stack/management/config/)
+
+### Learning Resources
+- [Redis University](https://university.redis.com/)
+- [Redis Labs Blog](https://redis.com/blog/)
+- [Redis GitHub](https://github.com/redis/redis)
+
+### Tools
+- [Redis Insight](https://redis.com/redis-enterprise/redis-insight/)
+- [Redis CLI](https://redis.io/docs/latest/develop/connect/cli/)
+- [Redis Modules](https://redis.io/modules/)
+
+### Community
+- [Redis Forum](https://forum.redis.io/)
+- [Redis Discord](https://discord.gg/redis)
+- [Stack Overflow - Redis](https://stackoverflow.com/questions/tagged/redis)
+
+---
+
+*This comprehensive guide covers Redis fundamentals, advanced features, and best practices. For deployment strategies and decision frameworks, refer to the [Redis Mastery Series](https://thisiskushal31.github.io/blog/#/blog/redis-mastery-series) blog posts.*
