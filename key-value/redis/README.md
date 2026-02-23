@@ -29,5 +29,5 @@ Comprehensive technical guide to Redis, an in-memory data structure store. This 
 
 ---
 
-[← Back to NoSQL Databases](../README.md)
+[← Back to Databases Deep Dive](../../README.md)
 

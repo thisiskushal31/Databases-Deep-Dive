@@ -29,5 +29,5 @@ Comprehensive technical guide to Aerospike, a high-performance distributed key-v
 
 ---
 
-[← Back to NoSQL Databases](../README.md)
+[← Back to Databases Deep Dive](../../README.md)
 

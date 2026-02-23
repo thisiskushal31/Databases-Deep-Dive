@@ -88,10 +88,10 @@ Advanced features, best practices, interview questions, and resources.
 
 ## Related Content
 
-- **[NoSQL Databases Overview](../README.md)**: Overview of NoSQL databases
-- **[Redis Deep Dive](../2-redis.md)**: Redis-specific implementation
-- **[Elasticsearch Deep Dive](../3-elasticsearch.md)**: Elasticsearch-specific implementation
-- **[Aerospike Deep Dive](../4-aerospike.md)**: Aerospike-specific implementation
+- **[Databases Deep Dive (10 types)](../../README.md)**: Main index and database types
+- **[Redis Deep Dive](../../key-value/redis/README.md)**: Key-value & cache
+- **[Elasticsearch Deep Dive](../../search-engine/elasticsearch/README.md)**: Search engine
+- **[Aerospike Deep Dive](../../key-value/aerospike/README.md)**: Key-value
 
 ## Resources
 
@@ -101,5 +101,5 @@ Advanced features, best practices, interview questions, and resources.
 
 ---
 
-[← Back to NoSQL Databases](../README.md)
+[← Back to Databases Deep Dive](../../README.md)
 

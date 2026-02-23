@@ -29,5 +29,5 @@ Comprehensive technical guide to Elasticsearch, a distributed search and analyti
 
 ---
 
-[← Back to NoSQL Databases](../README.md)
+[← Back to Databases Deep Dive](../../README.md)
 
