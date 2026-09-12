@@ -1,0 +1,1817 @@
+# MySQL Deep Dive
+
+Comprehensive technical guide to MySQL, the world's most popular open-source relational database management system. This document provides detailed technical information, configuration examples, operational procedures, and troubleshooting guides for MySQL administrators and engineers.
+
+> **For deployment strategies, decision frameworks, and high-level overviews, see the [MySQL Mastery Series](https://thisiskushal31.github.io/blog/#/blog/mysql-mastery-series) blog posts.**
+
+## Table of Contents
+
+### Getting Started
+- [Overview](#overview)
+- [Architecture](#architecture)
+  - [Storage Engines](#storage-engines)
+  - [Components](#components)
+- [Installation & Configuration](#installation--configuration)
+  - [Installation](#installation)
+  - [Initial Configuration](#initial-configuration)
+  - [Configuration File (my.cnf)](#configuration-file-mycnf)
+
+### Data Management
+- [Data Types](#data-types)
+  - [Numeric Types](#numeric-types)
+  - [String Types](#string-types)
+  - [Date/Time Types](#datetime-types)
+- [Schema Design](#schema-design)
+  - [DDL Commands](#ddl-commands-data-definition-language)
+  - [Normalization](#normalization)
+  - [Indexes](#indexes)
+  - [Foreign Keys](#foreign-keys)
+
+### SQL Fundamentals
+- [Introduction to SQL](#introduction-to-sql)
+- [Querying Data](#querying-data)
+  - [SELECT Statement](#select-statement)
+- [SQL Operators](#sql-operators)
+  - [Logical Operators](#logical-operators)
+  - [Comparison Operators](#comparison-operators)
+- [DML Commands](#dml-commands-data-manipulation-language)
+  - [INSERT Statement](#insert-statement)
+  - [UPDATE Statement](#update-statement)
+  - [DELETE Statement](#delete-statement)
+- [Data Types and Constraints](#data-types-and-constraints)
+- [Joins](#joins)
+- [Aggregations and Grouping](#aggregations-and-grouping)
+- [Window Functions (MySQL 8.0+)](#window-functions-mysql-80)
+- [Subqueries and Views](#subqueries-and-views)
+- [Common Table Expressions (CTEs)](#common-table-expressions-ctes---mysql-80)
+
+### Transactions & Concurrency
+- [Transactions and ACID Properties](#transactions-and-acid-properties)
+- [TCL Commands](#tcl-commands-transaction-control-language)
+- [Isolation Levels](#isolation-levels)
+- [Locking](#locking)
+- [Concurrency Control Best Practices](#concurrency-control-best-practices)
+
+### Performance & Operations
+- [Performance Optimization](#performance-optimization)
+  - [Query Optimization](#query-optimization)
+  - [Index Optimization](#index-optimization)
+  - [Connection Pooling](#connection-pooling)
+- [Replication](#replication)
+  - [Master-Slave Setup](#master-slave-setup)
+  - [MySQL Group Replication](#mysql-group-replication)
+- [High Availability](#high-availability)
+  - [MySQL InnoDB Cluster](#mysql-innodb-cluster)
+  - [Failover Strategies](#failover-strategies)
+- [Backup & Recovery](#backup--recovery)
+  - [mysqldump](#mysqldump)
+  - [Restore](#restore)
+  - [Binary Log Backup](#binary-log-backup)
+  - [Point-in-Time Recovery](#point-in-time-recovery)
+- [Monitoring](#monitoring)
+  - [Performance Schema](#performance-schema)
+  - [Slow Query Log](#slow-query-log)
+  - [Status Variables](#status-variables)
+
+### Security & Maintenance
+- [Security](#security)
+  - [User Management](#user-management)
+  - [Encryption](#encryption)
+- [Operational Checklists](#operational-checklists)
+  - [Daily Operations](#daily-operations)
+  - [Weekly Operations](#weekly-operations)
+  - [Monthly Operations](#monthly-operations)
+- [Troubleshooting](#troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Debugging](#debugging)
+
+### Advanced Topics
+- [Advanced SQL Topics](#advanced-sql-topics)
+  - [Stored Procedures](#stored-procedures)
+  - [Triggers](#triggers)
+  - [User-Defined Functions](#user-defined-functions)
+- [Best Practices](#best-practices)
+  - [SQL Code Best Practices](#sql-code-best-practices)
+  - [MySQL-Specific Best Practices](#mysql-specific-best-practices)
+- [Learning Resources](#learning-resources)
+- [Resources](#resources)
+
+---
+
+## Overview
+
+MySQL is an open-source relational database management system (RDBMS) that uses SQL (Structured Query Language) for database operations. It's widely used in web applications and is a core component of the LAMP (Linux, Apache, MySQL, PHP/Python/Perl) stack.
+
+According to the [MySQL 8.0 Reference Manual](https://dev.mysql.com/doc/refman/8.0/en/), "MySQL is the world's most popular open-source database." MySQL 8.0 introduced significant improvements including better performance, enhanced security, and new features like window functions and common table expressions.
+
+### Key Features
+- **ACID Compliance**: Full ACID transaction support with InnoDB
+- **Replication**: Master-slave and master-master replication
+- **High Availability**: Automatic failover with MySQL Group Replication
+- **Performance**: Optimized for read-heavy workloads
+- **Scalability**: Horizontal scaling with sharding, vertical scaling with larger instances
+
+## Architecture
+
+### Storage Engines
+
+#### InnoDB (Default)
+- **ACID compliant**: Full transaction support
+- **Row-level locking**: Better concurrency than table locks
+- **Foreign keys**: Referential integrity
+- **Crash recovery**: Automatic recovery after crashes
+- **Best for**: Most applications, especially transactional workloads
+
+#### MyISAM
+- **Table-level locking**: Faster for read-heavy workloads
+- **No transactions**: Not ACID compliant
+- **Full-text search**: Built-in full-text indexing
+- **Best for**: Read-heavy, non-transactional workloads (legacy)
+
+#### Memory (HEAP)
+- **In-memory storage**: All data in RAM
+- **Fast access**: Extremely fast reads and writes
+- **Data loss**: Data lost on restart
+- **Best for**: Temporary tables, caching
+
+### Components
+- **MySQL Server**: Core database engine
+- **MySQL Client**: Command-line interface
+- **MySQL Workbench**: GUI administration tool
+- **MySQL Router**: Connection routing and load balancing
+
+## Installation & Configuration
+
+### Installation
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install mysql-server
+
+# CentOS/RHEL
+sudo yum install mysql-server
+
+# macOS
+brew install mysql
+
+# Docker
+docker run --name mysql -e MYSQL_ROOT_PASSWORD=password -d mysql:8.0
+```
+
+### Initial Configuration
+```bash
+# Secure installation
+sudo mysql_secure_installation
+
+# Start service
+sudo systemctl start mysql
+sudo systemctl enable mysql
+
+# Connect
+mysql -u root -p
+```
+
+### Configuration File (my.cnf)
+```ini
+[mysqld]
+# Basic settings
+datadir=/var/lib/mysql
+socket=/var/run/mysqld/mysqld.sock
+port=3306
+
+# InnoDB settings
+innodb_buffer_pool_size=4G  # 70-80% of RAM
+innodb_log_file_size=256M
+innodb_flush_log_at_trx_commit=2
+innodb_flush_method=O_DIRECT
+
+# Connection settings
+max_connections=200
+thread_cache_size=50
+table_open_cache=4000
+
+# Query cache (disabled in MySQL 8.0)
+# query_cache_type=0
+# query_cache_size=0
+
+# Logging
+slow_query_log=1
+slow_query_log_file=/var/log/mysql/slow.log
+long_query_time=2
+log_queries_not_using_indexes=1
+
+# Binary logging (for replication)
+log_bin=/var/log/mysql/mysql-bin.log
+binlog_format=ROW
+expire_logs_days=7
+```
+
+## Data Types
+
+### Numeric Types
+- **TINYINT**: -128 to 127 (signed) or 0 to 255 (unsigned)
+- **SMALLINT**: -32,768 to 32,767
+- **INT/INTEGER**: -2,147,483,648 to 2,147,483,647
+- **BIGINT**: Large integers
+- **DECIMAL**: Fixed-point decimal numbers
+- **FLOAT**: Single-precision floating point
+- **DOUBLE**: Double-precision floating point
+
+### String Types
+- **CHAR**: Fixed-length string (0-255)
+- **VARCHAR**: Variable-length string (0-65,535)
+- **TEXT**: Variable-length text (up to 65,535 bytes)
+- **BLOB**: Binary large object
+- **ENUM**: Enumeration (list of values)
+- **SET**: Set of values
+
+### Date/Time Types
+- **DATE**: Date (YYYY-MM-DD)
+- **TIME**: Time (HH:MM:SS)
+- **DATETIME**: Date and time
+- **TIMESTAMP**: Automatic timestamp
+- **YEAR**: Year value
+
+## Schema Design
+
+### DDL Commands (Data Definition Language)
+
+DDL (Data Definition Language) is used to change the structure of the table like creating the table, altering the table, and deleting the table. All the commands in the DDL are auto-committed, which means they permanently save all the changes in the database.
+
+#### 1. CREATE
+
+This command is used to create a new database or table.
+
+**Syntax:**
+```sql
+CREATE TABLE table_name (
+    column1 datatype,
+    column2 datatype,
+    column3 datatype,
+    ...
+);
+```
+
+**Example:**
+```sql
+CREATE TABLE Employee (
+    EmployeeID INT,
+    FirstName VARCHAR(255),
+    LastName VARCHAR(255),
+    AddressLine VARCHAR(255),
+    City VARCHAR(255)
+);
+```
+
+**Advanced Example with Constraints:**
+```sql
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_email (email),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### 2. ALTER
+
+The ALTER TABLE statement in Structured Query Language allows you to add, modify, and delete columns of an existing table.
+
+**Syntax:**
+```sql
+ALTER TABLE table_name
+ADD column_name datatype;
+```
+
+**Example:**
+```sql
+ALTER TABLE Employee
+ADD Email VARCHAR(255);
+```
+
+**Other ALTER operations:**
+```sql
+-- Modify column
+ALTER TABLE Employee
+MODIFY COLUMN Email VARCHAR(100);
+
+-- Drop column
+ALTER TABLE Employee
+DROP COLUMN Email;
+
+-- Rename column
+ALTER TABLE Employee
+CHANGE COLUMN FirstName First_Name VARCHAR(255);
+```
+
+#### 3. DROP
+
+The DROP TABLE statement is used to drop an existing table in a database. This command deletes both the structure and records stored in the table.
+
+**Syntax:**
+```sql
+DROP TABLE table_name;
+```
+
+**Example:**
+```sql
+DROP TABLE Employee;
+```
+
+**Warning:** DROP TABLE permanently deletes the table and all its data. Use with caution!
+
+#### 4. TRUNCATE
+
+A TRUNCATE SQL statement is used to remove all rows (complete data) from a table. It is similar to the DELETE statement with no WHERE clause.
+
+**Syntax:**
+```sql
+TRUNCATE TABLE table_name;
+```
+
+**Example:**
+```sql
+TRUNCATE TABLE Employee;
+```
+
+**Difference between DELETE and TRUNCATE:**
+- **DELETE**: Removes rows one by one, can be rolled back, slower, resets AUTO_INCREMENT in some cases
+- **TRUNCATE**: Removes all rows at once, cannot be rolled back, faster, always resets AUTO_INCREMENT
+
+### Normalization
+
+Normalization is the process of organizing data in a database to reduce redundancy and improve data integrity. It involves dividing large tables into smaller, related tables and defining relationships between them.
+
+**Normal Forms:**
+
+1. **First Normal Form (1NF)**:
+   - Eliminate duplicate columns
+   - Create separate tables for each group of related data
+   - Identify each row with a unique column or set of columns (primary key)
+
+2. **Second Normal Form (2NF)**:
+   - Remove partial dependencies
+   - All non-key attributes must depend on the full primary key
+   - Split tables where non-key attributes depend on only part of the primary key
+
+3. **Third Normal Form (3NF)**:
+   - Remove transitive dependencies
+   - Non-key attributes must depend only on the primary key, not on other non-key attributes
+   - Eliminate columns that are not dependent on the primary key
+
+4. **Boyce-Codd Normal Form (BCNF)**:
+   - Every determinant is a candidate key
+   - Stricter version of 3NF
+   - Eliminates redundancy that 3NF might miss
+
+**Trade-offs:**
+- **Normalization**: Reduces redundancy and improves data integrity, but may require more joins
+- **Denormalization**: Improves query performance by reducing joins, but increases redundancy and storage
+
+### Indexes
+
+Indexes are data structures that improve the speed of data retrieval operations. MySQL uses B-Tree indexes by default.
+
+**B-Tree Indexes:**
+- Default index type in MySQL (InnoDB)
+- Balanced tree structure for O(log n) lookups
+- Supports equality and range queries efficiently
+- Best for: Equality and range queries, ORDER BY, GROUP BY
+
+**Index Types:**
+
+1. **Primary Index**: Automatically created on primary key
+   ```sql
+   CREATE TABLE users (
+       id INT AUTO_INCREMENT PRIMARY KEY  -- Primary index automatically created
+   );
+   ```
+
+2. **Secondary Index**: Created on non-primary key columns
+   ```sql
+   CREATE INDEX idx_email ON users(email);
+   ```
+
+3. **Composite Index**: Multiple columns (column order matters!)
+   ```sql
+   -- Order matters: most selective column first
+   CREATE INDEX idx_user_status_date ON users(status, created_at);
+   ```
+
+4. **Covering Index**: Contains all columns needed for query
+   ```sql
+   -- If query is: SELECT user_id, status, total FROM orders WHERE user_id = 1
+   CREATE INDEX idx_order_covering ON orders(user_id, status, total);
+   ```
+
+5. **Partial Index**: Index on subset of rows (MySQL 8.0+)
+   ```sql
+   -- Only index active users
+   CREATE INDEX idx_active_users ON users(email) WHERE status = 'active';
+   ```
+
+6. **Unique Index**: Ensures uniqueness
+   ```sql
+   CREATE UNIQUE INDEX idx_username ON users(username);
+   ```
+
+7. **Full-text Index**: For text search
+   ```sql
+   CREATE FULLTEXT INDEX idx_content ON articles(content);
+   ```
+
+**Index Operations:**
+```sql
+-- Show indexes
+SHOW INDEXES FROM users;
+
+-- Analyze index usage
+ANALYZE TABLE users;
+
+-- Drop index
+DROP INDEX idx_email ON users;
+```
+
+**Index Best Practices:**
+- **Column order matters**: In composite indexes, put most selective columns first
+- **Covering indexes**: Include all columns needed for query to avoid table lookups
+- **Monitor index usage**: Remove unused indexes (they slow down writes)
+- **Rebuild indexes**: Periodically rebuild indexes after bulk deletes
+- **Don't over-index**: Too many indexes slow down INSERT/UPDATE/DELETE operations
+
+### Foreign Keys
+```sql
+CREATE TABLE orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    total DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB;
+```
+
+## SQL Fundamentals
+
+This section covers essential SQL concepts for working with MySQL, providing comprehensive coverage of SQL commands, operators, and best practices.
+
+### Introduction to SQL
+
+**What is SQL?**
+
+SQL stands for Structured Query Language. This database language is mainly designed for maintaining the data in relational database management systems. SQL is the standard language for accessing and manipulating databases.
+
+MySQL implements SQL with some MySQL-specific extensions.
+
+**Types of SQL Commands:**
+
+SQL commands are categorized into four main types:
+
+- **DDL (Data Definition Language)**: CREATE, ALTER, DROP, TRUNCATE
+- **DML (Data Manipulation Language)**: INSERT, UPDATE, DELETE, SELECT
+- **DCL (Data Control Language)**: GRANT, REVOKE
+- **TCL (Transaction Control Language)**: COMMIT, ROLLBACK, SAVEPOINT
+
+**Important Note:** All DDL commands are auto-committed, meaning they permanently save all changes in the database immediately.
+
+### Querying Data
+
+#### SELECT Statement
+
+The SELECT statement is used to retrieve data from tables. According to the [MySQL SELECT documentation](https://dev.mysql.com/doc/refman/8.0/en/select.html), SELECT is the most commonly used SQL statement.
+
+**Basic SELECT:**
+```sql
+-- Select all columns
+SELECT * FROM users;
+
+-- Select specific columns
+SELECT username, email FROM users;
+
+-- Select with alias
+SELECT username AS name, email AS email_address FROM users;
+```
+
+**SELECT with WHERE Clause:**
+```sql
+-- Filter by condition
+SELECT * FROM users WHERE id = 1;
+SELECT * FROM users WHERE created_at > '2024-01-01';
+SELECT * FROM users WHERE age >= 18 AND status = 'active';
+SELECT * FROM users WHERE email LIKE '%@gmail.com';
+SELECT * FROM users WHERE id IN (1, 2, 3, 4, 5);
+SELECT * FROM users WHERE created_at BETWEEN '2024-01-01' AND '2024-12-31';
+```
+
+**SELECT with ORDER BY:**
+```sql
+-- Sort results
+SELECT * FROM users ORDER BY created_at DESC;
+SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
+SELECT * FROM users ORDER BY RAND();  -- Random order
+```
+
+**SELECT with LIMIT:**
+```sql
+-- Limit number of rows
+SELECT * FROM users LIMIT 10;
+SELECT * FROM users LIMIT 10 OFFSET 20;  -- Pagination
+SELECT * FROM users LIMIT 20, 10;  -- Alternative syntax (offset, limit)
+```
+
+### SQL Operators
+
+SQL operators are reserved words and characters used with the WHERE clause in SQL queries. They allow you to filter and manipulate data based on specific conditions.
+
+**Demo Table for Examples:**
+
+The following examples use a sample STUDENT table:
+
+```sql
+-- Sample STUDENT table
+CREATE TABLE Student (
+    Roll_No INT,
+    Name VARCHAR(50),
+    Class VARCHAR(10),
+    DIVISION VARCHAR(1),
+    City VARCHAR(50)
+);
+
+-- Sample data
+INSERT INTO Student VALUES
+(101, 'Yadnyesh', '10th', 'A', 'Pune'),
+(102, 'Om', '10th', 'C', 'Mumbai'),
+(103, 'Sahil', '10th', 'D', 'Pune'),
+(104, 'Rohan', '10th', 'B', 'Pune'),
+(105, 'Sahil', '10th', 'A', 'Delhi'),
+(106, 'Yadnyesh', '10th', 'C', 'Mumbai');
+```
+
+**STUDENT INFORMATION TABLE:**
+
+| Roll No | Name     | Class | DIVISION | City   |
+|---------|----------|-------|----------|--------|
+| 101     | Yadnyesh | 10th  | A        | Pune   |
+| 102     | Om       | 10th  | C        | Mumbai |
+| 103     | Sahil    | 10th  | D        | Pune   |
+| 104     | Rohan    | 10th  | B        | Pune   |
+| 105     | Sahil    | 10th  | A        | Delhi  |
+| 106     | Yadnyesh | 10th  | C        | Mumbai |
+
+#### Logical Operators
+
+**1. AND Operator:**
+
+The SQL AND operator is used with the WHERE clause in the SQL query. AND operator in SQL returns only those records which satisfy both conditions in the SQL query.
+
+**Query:**
+```sql
+SELECT * FROM Student 
+WHERE NAME = 'Yadnyesh' AND City = 'Mumbai';
+```
+
+**Output:**
+
+| Roll No | Name     | Class | DIVISION | City   |
+|---------|----------|-------|----------|--------|
+| 106     | Yadnyesh | 10th  | C        | Mumbai |
+
+In the above example, the SQL statement returns only one value because in the given table there is only one student who has name "Yadnyesh" and belongs to Mumbai.
+
+**Note:** Returns TRUE only if all conditions separated by AND are TRUE.
+
+**2. OR Operator:**
+
+The SQL OR operator returns records that satisfy at least one of the conditions. The OR operator in SQL shows the record within the range mentioned in the SQL query. This operator operates on the numbers, characters, and date/time operands. If there is no value in the given range, then this operator shows NULL value.
+
+**Query:**
+```sql
+SELECT * FROM Student 
+WHERE DIVISION = 'C' OR City = 'Delhi';
+```
+
+**Output:**
+
+| Roll No | Name     | Class | DIVISION | City   |
+|---------|----------|-------|----------|--------|
+| 102     | Om       | 10th  | C        | Mumbai |
+| 105     | Sahil    | 10th  | A        | Delhi  |
+| 106     | Yadnyesh | 10th  | C        | Mumbai |
+
+In the above example, the SQL statement returns three values because the given table has two students who belong to C Division and one is from Delhi.
+
+**Note:** Returns TRUE if any of the conditions separated by OR is TRUE.
+
+**3. NOT Operator:**
+
+The NOT operator in SQL shows those records from the table where the criteria is not met. NOT operator is used with WHERE clause in a SELECT query.
+
+**Query:**
+```sql
+SELECT * FROM Student 
+WHERE NOT City = 'Mumbai';
+```
+
+**Output:**
+
+| Roll No | Name     | Class | DIVISION | City |
+|---------|----------|-------|----------|------|
+| 101     | Yadnyesh | 10th  | A        | Pune |
+| 103     | Sahil    | 10th  | D        | Pune |
+| 104     | Rohan    | 10th  | B        | Pune |
+| 105     | Sahil    | 10th  | A        | Delhi |
+
+In the above example, it returns those student records who are not from Mumbai. This query shows records of students having City other than Mumbai.
+
+#### Comparison Operators
+
+**4. BETWEEN Operator:**
+
+The BETWEEN operator in SQL shows the record within the range mentioned in the SQL query. This operator operates on numbers, characters, and date/time operands. If there is no value in the given range, then this operator shows NULL value.
+
+**Query:**
+```sql
+SELECT * FROM Student 
+WHERE Roll_No BETWEEN 102 AND 104;
+```
+
+**Output:**
+
+| Roll No | Name  | Class | DIVISION | City   |
+|---------|-------|-------|----------|--------|
+| 102     | Om    | 10th  | C        | Mumbai |
+| 103     | Sahil | 10th  | D        | Pune   |
+| 104     | Rohan | 10th  | B        | Pune   |
+
+In the above example, the SQL statement returns three values because in Roll_No column there are only 3 values that lie from 102 to 104.
+
+**Note:** BETWEEN returns all values from the given start record to end records (inclusive).
+
+**5. IN Operator:**
+
+When we want to check for one or more than one value in a single SQL query, we use the IN operator with the WHERE clause in a SELECT query.
+
+**Query:**
+```sql
+SELECT * FROM Student 
+WHERE City IN ('Delhi', 'Pune');
+```
+
+**Output:**
+
+| Roll No | Name     | Class | DIVISION | City |
+|---------|----------|-------|----------|------|
+| 101     | Yadnyesh | 10th  | A        | Pune |
+| 103     | Sahil    | 10th  | D        | Pune |
+| 104     | Rohan    | 10th  | B        | Pune |
+| 105     | Sahil    | 10th  | A        | Delhi |
+
+In the above example, it returns those student records who are from Delhi and Pune. Other students will not be displayed.
+
+**6. LIKE Operator:**
+
+The LIKE operator filters records from columns based on a pattern specified in the SQL query. LIKE is used in the WHERE clause with the following three statements:
+1. SELECT Statement
+2. UPDATE Statement
+3. DELETE Statement
+
+There are two wildcards often used in conjunction with the LIKE operator:
+- **Percent sign (%)**: Represents zero, one, or multiple characters
+- **Underscore (_)**: Represents one, single character
+
+**Query 1:**
+```sql
+SELECT * FROM Student WHERE NAME LIKE 'Y%';
+```
+
+**Output:**
+
+| Roll No | Name     | Class | DIVISION | City |
+|---------|----------|-------|----------|------|
+| 101     | Yadnyesh | 10th  | A        | Pune |
+| 101     | Yadnyesh | 10th  | A        | Pune |
+
+**Query 2:**
+```sql
+SELECT * FROM Student WHERE CITY LIKE '_u%';
+```
+
+**Output:**
+
+| Roll No | Name     | Class | DIVISION | City   |
+|---------|----------|-------|----------|--------|
+| 101     | Yadnyesh | 10th  | A        | Pune   |
+| 102     | Om       | 10th  | C        | Mumbai |
+| 103     | Sahil    | 10th  | D        | Pune   |
+| 104     | Rohan    | 10th  | B        | Pune   |
+| 106     | Yadnyesh | 10th  | C        | Mumbai |
+
+In the first query, it returns all names of students starting from 'Y'. In the second example, it returns all the records who have the second letter as 'u' then any combination of letters.
+
+**Other Comparison Operators:**
+- `=`: Equal to
+- `<>` or `!=`: Not equal to
+- `<`: Less than
+- `>`: Greater than
+- `<=`: Less than or equal to
+- `>=`: Greater than or equal to
+
+### DML Commands (Data Manipulation Language)
+
+DML commands are used to manipulate data in tables. Unlike DDL commands, DML commands are not auto-committed and can be rolled back.
+
+#### INSERT Statement
+
+SQL INSERT statement is used to insert a single or multiple records in a table.
+
+**Basic Syntax:**
+```sql
+INSERT INTO table_name (column1, column2, column3, ...)
+VALUES (value1, value2, value3, ...);
+```
+
+**Example:**
+```sql
+INSERT INTO STUDENTS (ROLL_NO, NAME, AGE, CITY)
+VALUES (1, 'Yadnyesh', 19, 'PUNE');
+```
+
+**Advanced INSERT Examples:**
+```sql
+-- Insert single row
+INSERT INTO users (username, email, password_hash) 
+VALUES ('john', 'john@example.com', 'hash123');
+
+-- Insert multiple rows
+INSERT INTO users (username, email, password_hash) 
+VALUES 
+    ('john', 'john@example.com', 'hash123'),
+    ('jane', 'jane@example.com', 'hash456'),
+    ('bob', 'bob@example.com', 'hash789');
+
+-- Insert with default values
+INSERT INTO users (username, email) 
+VALUES ('alice', 'alice@example.com');
+-- created_at and updated_at will use DEFAULT values
+
+-- Insert from SELECT
+INSERT INTO users_backup (username, email)
+SELECT username, email FROM users WHERE created_at < '2024-01-01';
+```
+
+#### UPDATE Statement
+
+The UPDATE statement is used to modify the existing records in a table.
+
+**Basic Syntax:**
+```sql
+UPDATE table_name
+SET column1 = value1, column2 = value2, ...
+WHERE condition;
+```
+
+**Example:**
+```sql
+UPDATE Customers
+SET ContactName = 'Yadu', City = 'pune'
+WHERE CustomerID = 101;
+```
+
+**Advanced UPDATE Examples:**
+```sql
+-- Update single row
+UPDATE users SET email = 'newemail@example.com' WHERE id = 1;
+
+-- Update multiple columns
+UPDATE users 
+SET email = 'newemail@example.com', status = 'active' 
+WHERE id = 1;
+
+-- Update multiple rows
+UPDATE users SET status = 'inactive' WHERE last_login < '2024-01-01';
+
+-- Update with calculation
+UPDATE products SET price = price * 1.1 WHERE category = 'electronics';
+```
+
+**Important:** Always use WHERE clause with UPDATE to avoid updating all rows accidentally. Without WHERE, all rows in the table will be updated!
+
+#### DELETE Statement
+
+The DELETE statement is used to delete existing records in a table.
+
+**Basic Syntax:**
+```sql
+DELETE FROM table_name [WHERE condition];
+```
+
+**Example:**
+```sql
+DELETE FROM Customers WHERE CustomerName = 'Yadu';
+```
+
+**Advanced DELETE Examples:**
+```sql
+-- Delete specific row
+DELETE FROM users WHERE id = 1;
+
+-- Delete multiple rows
+DELETE FROM users WHERE status = 'deleted';
+
+-- Delete all rows (use with caution!)
+DELETE FROM users;  -- Removes all rows but keeps table structure
+
+-- Truncate (faster, but can't rollback)
+TRUNCATE TABLE users;  -- Removes all rows and resets AUTO_INCREMENT
+```
+
+**Important:** Always use WHERE clause with DELETE to avoid deleting all rows accidentally. Without WHERE, all rows in the table will be deleted!
+
+### Data Types and Constraints
+
+#### MySQL Data Types
+
+**Numeric Types:**
+```sql
+-- Integers
+TINYINT      -- -128 to 127 (signed) or 0 to 255 (unsigned)
+SMALLINT     -- -32,768 to 32,767
+INT/INTEGER  -- -2,147,483,648 to 2,147,483,647
+BIGINT       -- Very large integers
+
+-- Floating Point
+FLOAT        -- Single-precision (4 bytes)
+DOUBLE       -- Double-precision (8 bytes)
+DECIMAL(p,s) -- Fixed-point decimal (p=precision, s=scale)
+```
+
+**String Types:**
+```sql
+CHAR(n)      -- Fixed-length string (0-255)
+VARCHAR(n)   -- Variable-length string (0-65,535)
+TEXT         -- Variable-length text (up to 65,535 bytes)
+MEDIUMTEXT   -- Up to 16MB
+LONGTEXT     -- Up to 4GB
+BLOB         -- Binary large object
+```
+
+**Date/Time Types:**
+```sql
+DATE         -- Date only (YYYY-MM-DD)
+TIME         -- Time only (HH:MM:SS)
+DATETIME     -- Date and time
+TIMESTAMP    -- Automatic timestamp (updates on row change)
+YEAR         -- Year value (1901-2155)
+```
+
+#### Constraints
+
+Constraints enforce data integrity rules.
+
+**Common Constraints:**
+```sql
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    age INT CHECK (age >= 0 AND age <= 150),
+    status ENUM('active', 'inactive', 'pending') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+**Constraint Types:**
+- **NOT NULL**: Column cannot contain NULL values
+- **UNIQUE**: Column values must be unique
+- **PRIMARY KEY**: Uniquely identifies each row
+- **FOREIGN KEY**: References primary key in another table
+- **CHECK**: Validates data against condition (MySQL 8.0.16+)
+- **DEFAULT**: Provides default value when not specified
+
+### Joins
+```sql
+-- INNER JOIN
+SELECT u.username, o.total, o.created_at
+FROM users u
+INNER JOIN orders o ON u.id = o.user_id;
+
+-- LEFT JOIN
+SELECT u.username, COUNT(o.id) as order_count
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+GROUP BY u.id;
+
+-- RIGHT JOIN
+SELECT o.id, u.username
+FROM orders o
+RIGHT JOIN users u ON o.user_id = u.id;
+```
+
+### Aggregations and Grouping
+
+Aggregation functions perform calculations on groups of rows.
+
+**Aggregate Functions:**
+```sql
+-- COUNT: Count number of rows
+SELECT COUNT(*) FROM users;
+SELECT COUNT(DISTINCT status) FROM users;
+
+-- SUM: Sum of numeric values
+SELECT SUM(total) FROM orders;
+SELECT SUM(quantity * price) AS total_revenue FROM order_items;
+
+-- AVG: Average of numeric values
+SELECT AVG(age) FROM users;
+SELECT AVG(total) FROM orders WHERE status = 'completed';
+
+-- MIN/MAX: Minimum and maximum values
+SELECT MIN(created_at) FROM users;
+SELECT MAX(price) FROM products;
+
+-- GROUP_CONCAT: Concatenate values (MySQL specific)
+SELECT user_id, GROUP_CONCAT(product_name) FROM orders GROUP BY user_id;
+```
+
+**GROUP BY Clause:**
+```sql
+-- Group by single column
+SELECT status, COUNT(*) as count FROM users GROUP BY status;
+
+-- Group by multiple columns
+SELECT user_id, status, COUNT(*) as order_count, SUM(total) as total_spent
+FROM orders
+GROUP BY user_id, status;
+
+-- GROUP BY with HAVING (filter groups)
+SELECT user_id, COUNT(*) as order_count, SUM(total) as total_spent
+FROM orders
+GROUP BY user_id
+HAVING order_count > 5 AND total_spent > 1000;
+```
+
+**Difference between WHERE and HAVING:**
+- **WHERE**: Filters rows before grouping
+- **HAVING**: Filters groups after grouping
+
+```sql
+-- WHERE filters individual rows
+SELECT user_id, COUNT(*) as order_count
+FROM orders
+WHERE status = 'completed'  -- Filter rows first
+GROUP BY user_id;
+
+-- HAVING filters groups
+SELECT user_id, COUNT(*) as order_count
+FROM orders
+GROUP BY user_id
+HAVING order_count > 5;  -- Filter groups after grouping
+```
+
+### Window Functions (MySQL 8.0+)
+
+Window functions perform calculations across a set of rows related to the current row.
+
+**Ranking Functions:**
+```sql
+-- ROW_NUMBER: Sequential numbering
+SELECT 
+    username,
+    total,
+    ROW_NUMBER() OVER (ORDER BY total DESC) as rank
+FROM orders;
+
+-- RANK: Ranking with ties (gaps in sequence)
+SELECT 
+    username,
+    total,
+    RANK() OVER (ORDER BY total DESC) as rank
+FROM orders;
+
+-- DENSE_RANK: Ranking with ties (no gaps)
+SELECT 
+    username,
+    total,
+    DENSE_RANK() OVER (ORDER BY total DESC) as rank
+FROM orders;
+```
+
+**Aggregate Window Functions:**
+```sql
+-- Running totals
+SELECT 
+    date,
+    amount,
+    SUM(amount) OVER (ORDER BY date) as running_total
+FROM transactions;
+
+-- Moving averages
+SELECT 
+    date,
+    amount,
+    AVG(amount) OVER (ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) as moving_avg_7d
+FROM transactions;
+
+-- Partition by
+SELECT 
+    user_id,
+    order_date,
+    total,
+    SUM(total) OVER (PARTITION BY user_id ORDER BY order_date) as user_running_total
+FROM orders;
+```
+
+### Subqueries and Views
+
+#### Subqueries
+
+A subquery is a query nested inside another query. Subqueries can be used in SELECT, FROM, WHERE, and HAVING clauses.
+
+**Scalar Subquery (returns single value):**
+```sql
+-- In SELECT clause
+SELECT 
+    username,
+    (SELECT COUNT(*) FROM orders WHERE orders.user_id = users.id) as order_count
+FROM users;
+
+-- In WHERE clause
+SELECT * FROM users 
+WHERE id IN (SELECT user_id FROM orders WHERE total > 1000);
+
+-- In FROM clause (derived table)
+SELECT u.username, o.order_count
+FROM users u
+JOIN (SELECT user_id, COUNT(*) as order_count FROM orders GROUP BY user_id) o
+ON u.id = o.user_id;
+```
+
+**Correlated Subquery:**
+```sql
+-- Subquery references outer query
+SELECT 
+    u.username,
+    (SELECT MAX(created_at) FROM orders WHERE orders.user_id = u.id) as last_order_date
+FROM users u;
+```
+
+**EXISTS Subquery:**
+```sql
+-- Check for existence
+SELECT * FROM users u
+WHERE EXISTS (SELECT 1 FROM orders WHERE orders.user_id = u.id);
+
+-- NOT EXISTS
+SELECT * FROM users u
+WHERE NOT EXISTS (SELECT 1 FROM orders WHERE orders.user_id = u.id);
+```
+
+#### Views
+
+Views are virtual tables based on the result of a SELECT query. They simplify complex queries and provide an abstraction layer.
+
+**Creating Views:**
+```sql
+-- Simple view
+CREATE VIEW active_users AS
+SELECT * FROM users WHERE status = 'active';
+
+-- Complex view with joins
+CREATE VIEW user_order_summary AS
+SELECT 
+    u.id,
+    u.username,
+    u.email,
+    COUNT(o.id) as order_count,
+    SUM(o.total) as total_spent,
+    MAX(o.created_at) as last_order_date
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+GROUP BY u.id, u.username, u.email;
+
+-- Using the view
+SELECT * FROM user_order_summary WHERE order_count > 5;
+```
+
+**Updating Views:**
+```sql
+-- Update view definition
+CREATE OR REPLACE VIEW active_users AS
+SELECT * FROM users WHERE status = 'active' AND deleted_at IS NULL;
+
+-- Drop view
+DROP VIEW IF EXISTS active_users;
+```
+
+**View Limitations:**
+- Views with JOINs, GROUP BY, or aggregate functions are typically read-only
+- Simple views (single table, no aggregates) can sometimes be updated
+- Use WITH CHECK OPTION to enforce WHERE conditions on updates
+
+### Common Table Expressions (CTEs) - MySQL 8.0+
+
+CTEs provide a way to define temporary result sets that exist only for the duration of a query.
+
+**Basic CTE:**
+```sql
+WITH recent_orders AS (
+    SELECT * FROM orders WHERE created_at > '2024-01-01'
+)
+SELECT * FROM recent_orders WHERE total > 100;
+```
+
+**Recursive CTE:**
+```sql
+-- Hierarchical data (e.g., organizational chart)
+WITH RECURSIVE org_tree AS (
+    -- Base case
+    SELECT id, name, parent_id, 1 as level
+    FROM employees
+    WHERE parent_id IS NULL
+    
+    UNION ALL
+    
+    -- Recursive case
+    SELECT e.id, e.name, e.parent_id, ot.level + 1
+    FROM employees e
+    INNER JOIN org_tree ot ON e.parent_id = ot.id
+)
+SELECT * FROM org_tree;
+```
+
+## Transactions and Concurrency Control
+
+Transactions ensure data integrity and maintain consistency in multi-user database environments. Understanding transactions and concurrency control is vital when dealing with concurrent database operations.
+
+### Transactions and ACID Properties
+
+According to the [MySQL Transaction documentation](https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-model.html), a transaction is a logical unit of work that consists of one or more database operations. Transactions adhere to the ACID properties:
+
+**ACID Properties:**
+- **Atomicity**: A transaction is treated as a single, indivisible unit of work. Either all operations within a transaction are committed, or none of them are.
+- **Consistency**: Transactions bring the database from one consistent state to another consistent state. The integrity of the data is maintained.
+- **Isolation**: Concurrently executing transactions are isolated from each other, ensuring that the intermediate states of transactions are not visible to other transactions.
+- **Durability**: Once a transaction is committed, its changes are permanently saved and can survive system failures.
+
+### TCL Commands (Transaction Control Language)
+
+TCL commands are used to manage transactions in the database.
+
+#### COMMIT
+
+The COMMIT command saves all the transactions to the database since the last COMMIT or ROLLBACK command.
+
+**Syntax:**
+```sql
+COMMIT;
+```
+
+**Example:**
+```sql
+DELETE FROM Student WHERE AGE = 20;
+COMMIT;
+```
+
+#### ROLLBACK
+
+If any error occurs with any of the SQL grouped statements, all changes need to be aborted. The process of reversing changes is called rollback.
+
+**Syntax:**
+```sql
+ROLLBACK;
+```
+
+**Example:**
+```sql
+DELETE FROM Student WHERE AGE = 20;
+ROLLBACK;
+```
+
+#### SAVEPOINT
+
+SAVEPOINT allows you to set a point within a transaction to which you can later roll back.
+
+**Syntax:**
+```sql
+SAVEPOINT savepoint_name;
+ROLLBACK TO savepoint_name;
+```
+
+**Basic Transaction:**
+```sql
+-- Start transaction
+START TRANSACTION;
+
+-- Perform operations
+INSERT INTO orders (user_id, total) VALUES (1, 100.00);
+UPDATE users SET last_order_date = NOW() WHERE id = 1;
+
+-- Commit transaction
+COMMIT;
+
+-- Or rollback on error
+ROLLBACK;
+```
+
+**Transaction with Error Handling:**
+```sql
+START TRANSACTION;
+
+INSERT INTO orders (user_id, total) VALUES (1, 100.00);
+UPDATE users SET last_order_date = NOW() WHERE id = 1;
+
+-- Check for errors
+IF @@ERROR <> 0 THEN
+    ROLLBACK;
+ELSE
+    COMMIT;
+END IF;
+```
+
+### Isolation Levels
+
+Isolation levels define the degree of isolation and concurrency control in database transactions. According to the [MySQL Isolation Levels documentation](https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html), MySQL supports four isolation levels:
+
+**Isolation Levels:**
+1. **READ UNCOMMITTED**: Lowest isolation level
+   - Allows dirty reads (reading uncommitted data)
+   - No locks on reads
+   - Fastest but least safe
+
+2. **READ COMMITTED**: Default in some databases
+   - Prevents dirty reads
+   - Non-repeatable reads and phantom reads possible
+   - Each read gets a fresh snapshot
+
+3. **REPEATABLE READ**: MySQL InnoDB default
+   - Prevents dirty reads and non-repeatable reads
+   - Phantom reads may occur
+   - Consistent reads within transaction
+
+4. **SERIALIZABLE**: Highest isolation level
+   - Prevents all concurrency issues
+   - Transactions executed sequentially
+   - Slowest but safest
+
+**Setting Isolation Level:**
+```sql
+-- Set isolation level for current session
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+
+-- Set isolation level globally
+SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+-- Check current isolation level
+SELECT @@transaction_isolation;
+```
+
+**Isolation Level Comparison:**
+
+| Isolation Level | Dirty Read | Non-Repeatable Read | Phantom Read |
+|----------------|------------|---------------------|--------------|
+| READ UNCOMMITTED | Yes | Yes | Yes |
+| READ COMMITTED | No | Yes | Yes |
+| REPEATABLE READ | No | No | Yes |
+| SERIALIZABLE | No | No | No |
+
+### Locking
+
+MySQL uses locks to control concurrent access to data.
+
+**Lock Types:**
+- **Shared Lock (S Lock)**: Allows reading, prevents writing
+- **Exclusive Lock (X Lock)**: Prevents both reading and writing
+- **Intention Lock**: Indicates intention to lock at a finer granularity
+
+**Explicit Locking:**
+```sql
+-- Lock table for read
+LOCK TABLES users READ;
+
+-- Lock table for write
+LOCK TABLES users WRITE;
+
+-- Unlock tables
+UNLOCK TABLES;
+
+-- Row-level locking (InnoDB)
+SELECT * FROM users WHERE id = 1 FOR UPDATE;  -- Exclusive lock
+SELECT * FROM users WHERE id = 1 LOCK IN SHARE MODE;  -- Shared lock
+```
+
+**Deadlocks:**
+
+A deadlock occurs when two or more transactions are waiting for each other's locks, creating a circular dependency. MySQL automatically detects deadlocks and rolls back one of the transactions.
+
+**Prevention:**
+- Always acquire locks in the same order across all transactions
+- Keep transactions short to minimize lock duration
+- Use appropriate isolation levels
+
+**Detection:**
+```sql
+-- Check for deadlocks
+SHOW ENGINE INNODB STATUS\G
+
+-- Deadlock information
+SELECT * FROM information_schema.INNODB_LOCKS;
+SELECT * FROM information_schema.INNODB_LOCK_WAITS;
+```
+
+**Lock Contention:**
+
+Lock contention occurs when multiple transactions try to access the same data simultaneously.
+
+**Types of Locks:**
+- **Row-level locks**: Most granular, best concurrency (InnoDB default)
+- **Table-level locks**: Coarse-grained, can block all operations (MyISAM)
+- **Lock timeouts**: Set appropriate timeout values to prevent indefinite waits
+- **Lock escalation**: Monitor automatic lock escalation from row to table level
+
+**Monitoring:**
+```sql
+-- Check current locks
+SELECT * FROM information_schema.INNODB_LOCKS;
+SELECT * FROM information_schema.INNODB_LOCK_WAITS;
+
+-- Check lock wait time
+SHOW ENGINE INNODB STATUS\G
+```
+
+### Concurrency Control Best Practices
+
+1. **Keep transactions short**: Minimize lock duration
+2. **Access tables in same order**: Prevents deadlocks
+3. **Use appropriate isolation level**: Balance consistency and performance
+4. **Monitor lock contention**: Use SHOW ENGINE INNODB STATUS
+5. **Use row-level locking**: More granular than table locks (InnoDB provides this)
+6. **Set lock timeouts**: Prevent indefinite waits
+7. **Avoid long-running transactions**: They hold locks longer
+
+## Performance Optimization
+
+### Query Optimization
+```sql
+-- Use EXPLAIN to analyze queries
+EXPLAIN SELECT * FROM users WHERE email = 'test@example.com';
+
+-- Analyze table statistics
+ANALYZE TABLE users;
+
+-- Optimize table
+OPTIMIZE TABLE users;
+
+-- Check table status
+SHOW TABLE STATUS LIKE 'users';
+```
+
+### Index Optimization
+- **Covering indexes**: Include all columns needed for query
+- **Composite indexes**: Order matters (most selective first)
+- **Partial indexes**: Index subset of rows
+- **Monitor index usage**: Remove unused indexes
+
+### Connection Pooling
+```python
+# Python example with mysql-connector-pool
+import mysql.connector
+from mysql.connector import pooling
+
+config = {
+    'user': 'root',
+    'password': 'password',
+    'host': 'localhost',
+    'database': 'mydb',
+    'pool_name': 'mypool',
+    'pool_size': 10
+}
+
+pool = mysql.connector.pooling.MySQLConnectionPool(**config)
+connection = pool.get_connection()
+```
+
+## Replication
+
+### Master-Slave Setup
+
+#### Master Configuration
+```ini
+[mysqld]
+server-id=1
+log_bin=mysql-bin
+binlog_format=ROW
+```
+
+#### Create Replication User
+```sql
+CREATE USER 'replicator'@'%' IDENTIFIED BY 'password';
+GRANT REPLICATION SLAVE ON *.* TO 'replicator'@'%';
+FLUSH PRIVILEGES;
+```
+
+#### Slave Configuration
+```ini
+[mysqld]
+server-id=2
+relay_log=mysql-relay-bin
+read_only=1
+```
+
+#### Setup Replication
+```sql
+-- On slave
+CHANGE MASTER TO
+    MASTER_HOST='master_host',
+    MASTER_USER='replicator',
+    MASTER_PASSWORD='password',
+    MASTER_LOG_FILE='mysql-bin.000001',
+    MASTER_LOG_POS=154;
+
+START SLAVE;
+SHOW SLAVE STATUS\G
+```
+
+### MySQL Group Replication
+- **Multi-master**: All nodes can accept writes
+- **Automatic failover**: Automatic member management
+- **Consensus**: Paxos-based consensus protocol
+- **Use cases**: High availability, automatic failover
+
+## High Availability
+
+### MySQL InnoDB Cluster
+- **MySQL Shell**: Administration interface
+- **MySQL Router**: Connection routing
+- **Group Replication**: Multi-master replication
+- **Automatic failover**: Seamless failover
+
+### Failover Strategies
+- **Automatic**: MySQL Router handles failover
+- **Manual**: Admin-initiated failover
+- **Testing**: Regularly test failover procedures
+
+## Backup & Recovery
+
+### mysqldump
+```bash
+# Full backup
+mysqldump -u root -p --single-transaction --routines --triggers \
+  --all-databases > backup_$(date +%Y%m%d).sql
+
+# Single database
+mysqldump -u root -p --single-transaction mydb > mydb_backup.sql
+
+# Specific tables
+mysqldump -u root -p mydb table1 table2 > tables_backup.sql
+
+# With compression
+mysqldump -u root -p --all-databases | gzip > backup.sql.gz
+```
+
+### Restore
+```bash
+# Restore from backup
+mysql -u root -p < backup.sql
+
+# Restore specific database
+mysql -u root -p mydb < mydb_backup.sql
+
+# Restore compressed backup
+gunzip < backup.sql.gz | mysql -u root -p
+```
+
+### Binary Log Backup
+```bash
+# Enable binary logging
+# Backup binary logs
+mysqlbinlog --start-datetime="2024-01-01 00:00:00" \
+  /var/log/mysql/mysql-bin.000001 > binlog_backup.sql
+```
+
+### Point-in-Time Recovery
+```bash
+# 1. Restore full backup
+mysql -u root -p < full_backup.sql
+
+# 2. Apply binary logs
+mysqlbinlog --start-datetime="2024-01-01 00:00:00" \
+  --stop-datetime="2024-01-01 12:00:00" \
+  mysql-bin.000001 | mysql -u root -p
+```
+
+## Monitoring
+
+### Performance Schema
+```sql
+-- Enable performance schema
+-- Check enabled instruments
+SELECT * FROM performance_schema.setup_instruments 
+WHERE name LIKE 'statement%';
+
+-- Top queries by execution time
+SELECT 
+    digest_text,
+    count_star,
+    sum_timer_wait/1000000000000 as total_time_sec,
+    avg_timer_wait/1000000000000 as avg_time_sec
+FROM performance_schema.events_statements_summary_by_digest
+ORDER BY sum_timer_wait DESC
+LIMIT 10;
+```
+
+### Slow Query Log
+```sql
+-- Enable slow query log
+SET GLOBAL slow_query_log = 'ON';
+SET GLOBAL long_query_time = 2;
+SET GLOBAL log_queries_not_using_indexes = 'ON';
+
+-- Analyze slow queries
+mysqldumpslow /var/log/mysql/slow.log
+```
+
+### Status Variables
+```sql
+-- Show status
+SHOW STATUS LIKE 'Threads_connected';
+SHOW STATUS LIKE 'Questions';
+SHOW STATUS LIKE 'Slow_queries';
+
+-- Show process list
+SHOW PROCESSLIST;
+
+-- Show engine status
+SHOW ENGINE INNODB STATUS\G
+```
+
+## Security
+
+### User Management
+```sql
+-- Create user
+CREATE USER 'app_user'@'localhost' IDENTIFIED BY 'password';
+
+-- Grant privileges
+GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.* TO 'app_user'@'localhost';
+FLUSH PRIVILEGES;
+
+-- Revoke privileges
+REVOKE DELETE ON mydb.* FROM 'app_user'@'localhost';
+
+-- Show grants
+SHOW GRANTS FOR 'app_user'@'localhost';
+```
+
+### Encryption
+```sql
+-- Encrypt at rest (MySQL 8.0+)
+ALTER INSTANCE ROTATE INNODB MASTER KEY;
+
+-- Encrypt in transit (TLS)
+-- Configure SSL certificates in my.cnf
+```
+
+## Operational Checklists
+
+### Daily Operations
+- [ ] Monitor slow query log
+- [ ] Check replication lag
+- [ ] Review connection pool usage
+- [ ] Monitor disk space
+- [ ] Check backup completion
+- [ ] Review error logs for critical issues
+- [ ] Monitor database performance metrics
+
+### Weekly Operations
+- [ ] Analyze table statistics
+- [ ] Review and optimize slow queries
+- [ ] Check index usage and remove unused indexes
+- [ ] Review error logs comprehensively
+- [ ] Verify backup restores (test restore procedure)
+- [ ] Review connection patterns and adjust pool sizes if needed
+- [ ] Check for table fragmentation
+
+### Monthly Operations
+- [ ] Review and update indexes based on query patterns
+- [ ] Analyze growth trends and capacity planning
+- [ ] Security audit (user privileges, access logs)
+- [ ] Performance baseline comparison
+- [ ] Review and update backup strategies
+- [ ] Document any schema changes or optimizations
+- [ ] Review replication configuration and performance
+
+## Troubleshooting
+
+### Common Issues
+1. **Too many connections**: Increase max_connections or use connection pooling
+2. **Slow queries**: Analyze with EXPLAIN, add indexes
+3. **Lock contention**: Review isolation levels, optimize queries
+4. **Replication lag**: Check network, replica performance
+5. **Disk space**: Monitor growth, plan expansion
+
+### Debugging
+```sql
+-- Check locks
+SELECT * FROM information_schema.INNODB_LOCKS;
+SELECT * FROM information_schema.INNODB_LOCK_WAITS;
+
+-- Check replication status
+SHOW SLAVE STATUS\G
+
+-- Check table corruption
+CHECK TABLE users;
+REPAIR TABLE users;
+
+-- Find slow queries
+SELECT * FROM mysql.slow_log
+ORDER BY query_time DESC
+LIMIT 10;
+```
+
+## Advanced SQL Topics
+
+### Stored Procedures
+
+Stored procedures are precompiled SQL code stored in the database. According to the [MySQL Stored Procedures documentation](https://dev.mysql.com/doc/refman/8.0/en/stored-programs-views.html), stored procedures can improve performance and security.
+
+**Creating Stored Procedures:**
+```sql
+DELIMITER //
+
+CREATE PROCEDURE GetUserOrders(IN user_id INT)
+BEGIN
+    SELECT * FROM orders WHERE user_id = user_id ORDER BY created_at DESC;
+END //
+
+DELIMITER ;
+
+-- Call stored procedure
+CALL GetUserOrders(1);
+```
+
+**Stored Procedure with Parameters:**
+```sql
+DELIMITER //
+
+CREATE PROCEDURE CreateOrder(
+    IN p_user_id INT,
+    IN p_total DECIMAL(10,2),
+    OUT p_order_id INT
+)
+BEGIN
+    INSERT INTO orders (user_id, total) VALUES (p_user_id, p_total);
+    SET p_order_id = LAST_INSERT_ID();
+END //
+
+DELIMITER ;
+
+-- Call with output parameter
+CALL CreateOrder(1, 100.00, @order_id);
+SELECT @order_id;
+```
+
+### Triggers
+
+Triggers automatically execute in response to specific database events.
+
+**Creating Triggers:**
+```sql
+-- Before insert trigger
+DELIMITER //
+
+CREATE TRIGGER before_user_insert
+BEFORE INSERT ON users
+FOR EACH ROW
+BEGIN
+    IF NEW.email NOT LIKE '%@%' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid email format';
+    END IF;
+END //
+
+DELIMITER ;
+
+-- After update trigger
+DELIMITER //
+
+CREATE TRIGGER after_order_update
+AFTER UPDATE ON orders
+FOR EACH ROW
+BEGIN
+    IF NEW.status = 'completed' AND OLD.status != 'completed' THEN
+        INSERT INTO order_history (order_id, event, created_at)
+        VALUES (NEW.id, 'Order completed', NOW());
+    END IF;
+END //
+
+DELIMITER ;
+```
+
+### User-Defined Functions
+
+MySQL supports user-defined functions (UDFs) written in C/C++, and stored functions written in SQL.
+
+**Stored Function:**
+```sql
+DELIMITER //
+
+CREATE FUNCTION CalculateDiscount(price DECIMAL(10,2), discount_percent INT)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    RETURN price * (1 - discount_percent / 100.0);
+END //
+
+DELIMITER ;
+
+-- Use function
+SELECT product_name, price, CalculateDiscount(price, 10) as discounted_price
+FROM products;
+```
+
+## Best Practices
+
+### SQL Code Best Practices
+
+Based on SQL best practices:
+
+1. **Naming Conventions:**
+   - Use descriptive names for tables, columns, and other objects
+   - Use consistent naming (e.g., snake_case or camelCase)
+   - Prefix indexes with `idx_`, foreign keys with `fk_`
+
+2. **Code Formatting:**
+   - Use consistent indentation
+   - Capitalize SQL keywords (SELECT, FROM, WHERE)
+   - Use line breaks for readability
+   - Comment complex queries
+
+3. **Query Optimization:**
+   - Use EXPLAIN to analyze queries
+   - Avoid SELECT * in production code
+   - Use appropriate indexes
+   - Limit result sets with LIMIT
+
+4. **Security:**
+   - Use prepared statements to prevent SQL injection
+   - Validate input data
+   - Use least privilege principle
+   - Encrypt sensitive data
+
+5. **Error Handling:**
+   - Use transactions for data integrity
+   - Handle errors gracefully
+   - Log errors for debugging
+   - Validate data before operations
+
+### MySQL-Specific Best Practices
+
+1. **Use InnoDB**: Default and recommended storage engine
+2. **Index wisely**: Don't over-index, monitor usage
+3. **Normalize data**: Follow normalization principles
+4. **Use prepared statements**: Prevent SQL injection
+5. **Monitor performance**: Use Performance Schema and slow query log
+6. **Regular backups**: Automated daily backups
+7. **Test restores**: Regularly test backup restores
+8. **Connection pooling**: Use connection pooling in applications
+9. **Query optimization**: Analyze and optimize slow queries
+10. **Security**: Use least privilege, encrypt data
+
+## Learning Resources
+
+### Recommended Learning Resources
+
+Based on SQL best practices and comprehensive learning materials:
+
+**Books:**
+- "SQL Cookbook" by Anthony Molinaro
+- "SQL Queries for Mere Mortals" by John Viescas and Michael J. Hernandez
+- "High Performance MySQL" by Baron Schwartz, Peter Zaitsev, and Vadim Tkachenko
+
+**Online Tutorials:**
+- [W3Schools SQL Tutorial](https://www.w3schools.com/sql/)
+- [SQLZoo](https://sqlzoo.net/) - Interactive SQL exercises
+- [Mode Analytics SQL Tutorial](https://mode.com/sql-tutorial/)
+
+**Interactive Practice:**
+- [SQLZoo](https://sqlzoo.net/) - Interactive SQL exercises
+- [HackerRank SQL](https://www.hackerrank.com/domains/sql) - SQL challenges
+- [LeetCode Database](https://leetcode.com/problemset/database/) - Database problems
+- [SQLFiddle](http://sqlfiddle.com/) - Online SQL playground
+
+
+**MySQL-Specific Resources:**
+- [MySQL 8.0 Reference Manual](https://dev.mysql.com/doc/refman/8.0/en/)
+- [MySQL Tutorial](https://dev.mysql.com/doc/refman/8.0/en/tutorial.html)
+- [MySQL Performance Blog](https://mysqlserverteam.com/)
+
+## Resources
+
+- [MySQL Documentation](https://dev.mysql.com/doc/)
+- [MySQL Performance Blog](https://mysqlserverteam.com/)
+- [High Performance MySQL](https://www.oreilly.com/library/view/high-performance-mysql/9781449332471/)
+
